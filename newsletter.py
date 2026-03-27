@@ -37,6 +37,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 def get_league():
+    """Create League object via espn-api."""
     league = League(
         league_id=LEAGUE_ID,
         year=SEASON_ID,
@@ -47,6 +48,7 @@ def get_league():
 
 
 def build_team_lookups(league):
+    """Build lookups from espn-api League object and config."""
     espn_lookup = {}
     for team in league.teams:
         espn_lookup[team.team_id] = {
@@ -62,14 +64,19 @@ def build_team_lookups(league):
 
 
 def build_summary(league):
-    """Use raw league data instead of league.scoreboard() to avoid KeyError on empty/odd weeks."""
+    """
+    Build a compact summary string from league data.
+
+    Uses raw league JSON for matchups to avoid edge cases, and League.teams
+    for standings, with defensive handling of record fields.
+    """
     espn_lookup, config_lookup = build_team_lookups(league)
     data = league._fetch_league()  # raw JSON dict
     schedule = data.get("schedule", [])
 
     lines = []
 
-    # Debug listing
+    # Debug listing to help map team IDs and config
     lines.append("Teams in league (from ESPN):")
     for tid, info in espn_lookup.items():
         cfg = config_lookup.get(tid)
@@ -78,7 +85,7 @@ def build_summary(league):
             f"- ID {tid}: ESPN name '{info['name']}' (abbrev {info['abbrev']}), config name '{cfg_name}'"
         )
 
-    # Try to infer current matchup period
+    # Infer current matchup period
     matchup_periods = [m.get("matchupPeriodId") for m in schedule if "matchupPeriodId" in m]
     current_period = max(matchup_periods) if matchup_periods else None
 
@@ -91,7 +98,7 @@ def build_summary(league):
         home = matchup.get("home")
         away = matchup.get("away")
 
-        # Skip odd entries without both sides (bye weeks, placeholders, etc.)
+        # Skip entries without both sides (pre-season, bye, etc.)
         if not home or not away:
             continue
 
@@ -112,16 +119,28 @@ def build_summary(league):
     if not has_any_matchup:
         lines.append("- No completed matchups found for the current scoring period yet.")
 
-    # Standings
+    # Standings (defensive re: record fields)
     lines.append("\nStandings (rough):")
     teams_list = []
     for team in league.teams:
-        tid = team.team_id
-        name = team.team_name
-        record = team.record
-        wins = record["wins"]
-        losses = record["losses"]
-        ties = record.get("ties", 0)
+        tid = getattr(team, "team_id", None)
+        name = getattr(team, "team_name", f"Team {tid}")
+
+        # Try attributes first
+        wins = getattr(team, "wins", None)
+        losses = getattr(team, "losses", None)
+        ties = getattr(team, "ties", None)
+
+        # Fallback to a record dict if needed
+        if wins is None or losses is None:
+            rec = getattr(team, "record", None)
+            if isinstance(rec, dict):
+                wins = rec.get("wins", 0)
+                losses = rec.get("losses", 0)
+                ties = rec.get("ties", 0)
+            else:
+                wins, losses, ties = 0, 0, 0
+
         teams_list.append((tid, name, wins, losses, ties))
 
     teams_list.sort(key=lambda x: x[2], reverse=True)
