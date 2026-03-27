@@ -1,0 +1,31 @@
+{
+  "league": {
+    "league_id": 757373563,
+    "season_id": 2026
+  },
+  "email": {
+    "from_address": "jimlaudie@gmail.com",
+    "subject_prefix": "[Fantasy Week in Review]"
+  },
+  "style": {
+    "trash_talk_level": 6,
+    "no_swearing": true,
+    "shane_team_name": "Shane's Team",
+    "jim_team_name": "Jim's Team"
+  },
+  "teams": [
+    {
+      "team_id": 1,
+      "team_name": "Mudville 9",
+      "manager_name": "Jim",
+      "email": "jimlaudie@gmail.com"
+    },
+    {
+      "team_id": 2,
+      "team_name": "St George Sentinels",
+      "manager_name": "Shane",
+      "email": "Shjohanson70@gmail.com"
+    }
+    // add entries for all 13 teams, with correct team_id/team_name/email
+  ]
+}
