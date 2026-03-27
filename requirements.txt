@@ -1,2 +1,4 @@
 requests
 openai
+espn-api
+
