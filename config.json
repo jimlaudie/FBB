@@ -5,7 +5,9 @@
   },
   "email": {
     "from_address": "jimlaudie@gmail.com",
-    "subject_prefix": "[Fantasy Week in Review]"
+    "subject_prefix": "[Fantasy Week in Review]",
+    "test_mode": true,
+    "test_recipient": "jimlaudie@gmail.com"
   },
   "style": {
     "trash_talk_level": 6,
@@ -16,16 +18,15 @@
   "teams": [
     {
       "team_id": 1,
-      "team_name": "Mudville 9",
-      "manager_name": "Jim",
-      "email": "jimlaudie@gmail.com"
+      "team_name": "TEMP NAME 1",
+      "manager_name": "Manager 1",
+      "email": "manager1@example.com"
     },
     {
       "team_id": 2,
-      "team_name": "St George Sentinels",
-      "manager_name": "Shane",
-      "email": "Shjohanson70@gmail.com"
+      "team_name": "TEMP NAME 2",
+      "manager_name": "Manager 2",
+      "email": "manager2@example.com"
     }
-    // add entries for all 13 teams, with correct team_id/team_name/email
   ]
 }
