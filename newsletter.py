@@ -37,7 +37,6 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 def get_league():
-    """Create League object via espn-api."""
     league = League(
         league_id=LEAGUE_ID,
         year=SEASON_ID,
@@ -48,7 +47,6 @@ def get_league():
 
 
 def build_team_lookups(league):
-    """Build lookups from espn-api League object and config."""
     espn_lookup = {}
     for team in league.teams:
         espn_lookup[team.team_id] = {
@@ -64,8 +62,11 @@ def build_team_lookups(league):
 
 
 def build_summary(league):
-    """Turn League object data into a compact text block for the LLM."""
+    """Use raw league data instead of league.scoreboard() to avoid KeyError on empty/odd weeks."""
     espn_lookup, config_lookup = build_team_lookups(league)
+    data = league._fetch_league()  # raw JSON dict
+    schedule = data.get("schedule", [])
+
     lines = []
 
     # Debug listing
@@ -77,25 +78,41 @@ def build_summary(league):
             f"- ID {tid}: ESPN name '{info['name']}' (abbrev {info['abbrev']}), config name '{cfg_name}'"
         )
 
-    # Scoreboard (current week)
-    lines.append("\nWeekly Matchups:")
-    for matchup in league.scoreboard():
-        home_team = matchup.home_team
-        away_team = matchup.away_team
-        home_score = matchup.home_score
-        away_score = matchup.away_score
+    # Try to infer current matchup period
+    matchup_periods = [m.get("matchupPeriodId") for m in schedule if "matchupPeriodId" in m]
+    current_period = max(matchup_periods) if matchup_periods else None
 
-        home_name = home_team.team_name
-        away_name = away_team.team_name
-        home_id = home_team.team_id
-        away_id = away_team.team_id
+    lines.append("\nWeekly Matchups:")
+    has_any_matchup = False
+    for matchup in schedule:
+        if current_period is not None and matchup.get("matchupPeriodId") != current_period:
+            continue
+
+        home = matchup.get("home")
+        away = matchup.get("away")
+
+        # Skip odd entries without both sides (bye weeks, placeholders, etc.)
+        if not home or not away:
+            continue
+
+        home_team_id = home.get("teamId")
+        away_team_id = away.get("teamId")
+        home_score = home.get("totalPoints", 0)
+        away_score = away.get("totalPoints", 0)
+
+        home_name = espn_lookup.get(home_team_id, {}).get("name", f"Team {home_team_id}")
+        away_name = espn_lookup.get(away_team_id, {}).get("name", f"Team {away_team_id}")
 
         lines.append(
-            f"- {home_name} (ID {home_id}) scored {home_score} vs "
-            f"{away_name} (ID {away_id}) scored {away_score}"
+            f"- {home_name} (ID {home_team_id}) scored {home_score} vs "
+            f"{away_name} (ID {away_team_id}) scored {away_score}"
         )
+        has_any_matchup = True
 
-    # Standings (use team records)
+    if not has_any_matchup:
+        lines.append("- No completed matchups found for the current scoring period yet.")
+
+    # Standings
     lines.append("\nStandings (rough):")
     teams_list = []
     for team in league.teams:
