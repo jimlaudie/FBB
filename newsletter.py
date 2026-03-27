@@ -5,9 +5,8 @@ import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-
-import requests
 from openai import OpenAI
+from espn_api.baseball import League
 
 # Load config
 with open("config.json", "r") as f:
@@ -37,97 +36,74 @@ GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-def get_espn_data():
-    """Fetch scoreboard and team info from ESPN fantasy baseball."""
-    cookies = {
-        "SWID": SWID,
-        "ESPN_S2": ESPN_S2
-    }
-
-    # Updated base URL host
-    base_url = (
-        f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/flb/"
-        f"seasons/{SEASON_ID}/segments/0/leagues/{LEAGUE_ID}"
+def get_league():
+    """Create League object via espn-api."""
+    league = League(
+        league_id=LEAGUE_ID,
+        year=SEASON_ID,
+        swid=SWID,
+        espn_s2=ESPN_S2
     )
-
-    scoreboard_url = f"{base_url}?view=mMatchupScore"
-    teams_url = f"{base_url}?view=mTeam"
-
-    scoreboard_resp = requests.get(scoreboard_url, cookies=cookies)
-    teams_resp = requests.get(teams_url, cookies=cookies)
-
-    scoreboard_resp.raise_for_status()
-    teams_resp.raise_for_status()
-
-    scoreboard = scoreboard_resp.json()
-    teams = teams_resp.json()
-
-    return scoreboard, teams
+    return league
 
 
-def build_team_lookup(teams_json):
-    """Mapping from teamId -> ESPN team info."""
-    lookup = {}
-    for team in teams_json.get("teams", []):
-        tid = team.get("id")
-        name = (team.get("location", "") + " " + team.get("nickname", "")).strip()
-        abbrev = team.get("abbrev", "")
-        lookup[tid] = {
-            "name": name or f"Team {tid}",
-            "abbrev": abbrev
+def build_team_lookups(league):
+    """Build lookups from espn-api League object and config."""
+    espn_lookup = {}
+    for team in league.teams:
+        espn_lookup[team.team_id] = {
+            "name": team.team_name,
+            "abbrev": team.team_abbrev
         }
-    return lookup
 
-
-def build_config_team_lookup():
-    """Mapping from teamId -> config entry (manager name, email, etc.)."""
-    lookup = {}
+    config_lookup = {}
     for t in TEAMS:
-        lookup[t["team_id"]] = t
-    return lookup
+        config_lookup[t["team_id"]] = t
+
+    return espn_lookup, config_lookup
 
 
-def build_summary(scoreboard, teams_json):
-    """Turn raw ESPN JSON into a compact text block for the LLM."""
-    espn_team_lookup = build_team_lookup(teams_json)
-    config_team_lookup = build_config_team_lookup()
-
+def build_summary(league):
+    """Turn League object data into a compact text block for the LLM."""
+    espn_lookup, config_lookup = build_team_lookups(league)
     lines = []
 
-    # Debug listing to help you map team IDs and names
+    # Debug listing
     lines.append("Teams in league (from ESPN):")
-    for tid, info in espn_team_lookup.items():
-        cfg = config_team_lookup.get(tid)
+    for tid, info in espn_lookup.items():
+        cfg = config_lookup.get(tid)
         cfg_name = cfg["team_name"] if cfg else "NO_CONFIG_NAME"
         lines.append(
             f"- ID {tid}: ESPN name '{info['name']}' (abbrev {info['abbrev']}), config name '{cfg_name}'"
         )
 
+    # Scoreboard (current week)
     lines.append("\nWeekly Matchups:")
-    for matchup in scoreboard.get("schedule", []):
-        home = matchup.get("home", {})
-        away = matchup.get("away", {})
-        home_team_id = home.get("teamId")
-        away_team_id = away.get("teamId")
-        home_score = home.get("totalPoints", 0)
-        away_score = away.get("totalPoints", 0)
+    for matchup in league.scoreboard():
+        home_team = matchup.home_team
+        away_team = matchup.away_team
+        home_score = matchup.home_score
+        away_score = matchup.away_score
 
-        home_name = espn_team_lookup.get(home_team_id, {}).get("name", f"Team {home_team_id}")
-        away_name = espn_team_lookup.get(away_team_id, {}).get("name", f"Team {away_team_id}")
+        home_name = home_team.team_name
+        away_name = away_team.team_name
+        home_id = home_team.team_id
+        away_id = away_team.team_id
 
         lines.append(
-            f"- {home_name} (ID {home_team_id}) scored {home_score} vs "
-            f"{away_name} (ID {away_team_id}) scored {away_score}"
+            f"- {home_name} (ID {home_id}) scored {home_score} vs "
+            f"{away_name} (ID {away_id}) scored {away_score}"
         )
 
+    # Standings (use team records)
     lines.append("\nStandings (rough):")
     teams_list = []
-    for team in teams_json.get("teams", []):
-        tid = team.get("id")
-        name = espn_team_lookup.get(tid, {}).get("name", f"Team {tid}")
-        record = team.get("record", {}).get("overall", {})
-        wins = record.get("wins", 0)
-        losses = record.get("losses", 0)
+    for team in league.teams:
+        tid = team.team_id
+        name = team.team_name
+        record = team.record
+        wins = record["wins"]
+        losses = record["losses"]
         ties = record.get("ties", 0)
         teams_list.append((tid, name, wins, losses, ties))
 
@@ -139,7 +115,6 @@ def build_summary(scoreboard, teams_json):
 
 
 def build_prompt(summary_text):
-    """Construct the LLM prompt with your league's personality and rules."""
     rules = [
         f"Trash talk level: {TRASH_TALK_LEVEL} (on a 1-10 scale).",
         "Do not use any swear words.",
@@ -200,17 +175,15 @@ def send_email(newsletter_html, recipients):
 
 
 def main():
-    scoreboard, teams_json = get_espn_data()
-    summary_text = build_summary(scoreboard, teams_json)
+    league = get_league()
+    summary_text = build_summary(league)
     newsletter_md = generate_newsletter(summary_text)
 
-    # Decide recipients
     if TEST_MODE:
         recipients = [TEST_RECIPIENT]
     else:
         recipients = [team["email"] for team in TEAMS]
 
-    # Convert markdown-ish text to simple HTML
     html = "<html><body>"
     for line in newsletter_md.split("\n"):
         if line.startswith("#"):
