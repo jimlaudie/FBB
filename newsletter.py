@@ -17,6 +17,8 @@ SEASON_ID = CONFIG["league"]["season_id"]
 
 FROM_ADDRESS = CONFIG["email"]["from_address"]
 SUBJECT_PREFIX = CONFIG["email"]["subject_prefix"]
+TEST_MODE = CONFIG["email"].get("test_mode", True)
+TEST_RECIPIENT = CONFIG["email"].get("test_recipient", FROM_ADDRESS)
 
 TRASH_TALK_LEVEL = CONFIG["style"]["trash_talk_level"]
 NO_SWEARING = CONFIG["style"]["no_swearing"]
@@ -34,38 +36,65 @@ GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-def get_espn_league_data():
-    """Fetch basic scoreboard and standings from ESPN fantasy baseball."""
+def get_espn_data():
+    """Fetch scoreboard and team info from ESPN fantasy baseball."""
     cookies = {
         "SWID": SWID,
         "ESPN_S2": ESPN_S2
     }
 
-    # Example URLs – may need tweaking to match ESPN's current endpoints.
-    # Scoreboard for current scoring period
-    scoreboard_url = (
-        f"https://fantasy.espn.com/apis/v3/games/flb/seasons/{SEASON_ID}/segments/0/leagues/{LEAGUE_ID}"
-        f"?view=mMatchupScore"
-    )
+    base_url = f"https://fantasy.espn.com/apis/v3/games/flb/seasons/{SEASON_ID}/segments/0/leagues/{LEAGUE_ID}"
 
-    standings_url = (
-        f"https://fantasy.espn.com/apis/v3/games/flb/seasons/{SEASON_ID}/segments/0/leagues/{LEAGUE_ID}"
-        f"?view=mTeam"
-    )
+    # Scoreboard for current scoring period
+    scoreboard_url = f"{base_url}?view=mMatchupScore"
+    # Team info (names, owners, etc.)
+    teams_url = f"{base_url}?view=mTeam"
 
     scoreboard = requests.get(scoreboard_url, cookies=cookies).json()
-    standings = requests.get(standings_url, cookies=cookies).json()
+    teams = requests.get(teams_url, cookies=cookies).json()
 
-    return scoreboard, standings
+    return scoreboard, teams
 
 
-def build_summary(scoreboard, standings):
+def build_team_lookup(teams_json):
+    """Build mapping from teamId -> team info (name, etc.) from ESPN."""
+    lookup = {}
+    for team in teams_json.get("teams", []):
+        tid = team.get("id")
+        name = team.get("location", "") + " " + team.get("nickname", "")
+        abbrev = team.get("abbrev", "")
+        lookup[tid] = {
+            "name": name.strip(),
+            "abbrev": abbrev
+        }
+    return lookup
+
+
+def build_config_team_lookup():
+    """Mapping from teamId -> config entry (manager name, email, etc.)."""
+    lookup = {}
+    for t in TEAMS:
+        lookup[t["team_id"]] = t
+    return lookup
+
+
+def build_summary(scoreboard, teams_json):
     """Turn raw ESPN JSON into a compact text block for the LLM."""
-    # This is deliberately simple; we’d refine it once we see real JSON.
+    espn_team_lookup = build_team_lookup(teams_json)
+    config_team_lookup = build_config_team_lookup()
+
     lines = []
 
-    # Matchups (from scoreboard)
-    lines.append("Weekly Matchups:")
+    # Show discovered teams for debugging / mapping
+    lines.append("Teams in league (from ESPN):")
+    for tid, info in espn_team_lookup.items():
+        cfg = config_team_lookup.get(tid)
+        cfg_name = cfg["team_name"] if cfg else "NO_CONFIG_NAME"
+        lines.append(
+            f"- ID {tid}: ESPN name '{info['name']}' (abbrev {info['abbrev']}), config name '{cfg_name}'"
+        )
+
+    lines.append("\nWeekly Matchups:")
     for matchup in scoreboard.get("schedule", []):
         home = matchup.get("home", {})
         away = matchup.get("away", {})
@@ -74,17 +103,28 @@ def build_summary(scoreboard, standings):
         home_score = home.get("totalPoints", 0)
         away_score = away.get("totalPoints", 0)
 
-        lines.append(f"- Team {home_team_id} ({home_score}) vs Team {away_team_id} ({away_score})")
+        home_name = espn_team_lookup.get(home_team_id, {}).get("name", f"Team {home_team_id}")
+        away_name = espn_team_lookup.get(away_team_id, {}).get("name", f"Team {away_team_id}")
 
-    # Standings (from standings)
-    lines.append("\nStandings:")
-    for team in standings.get("teams", []):
+        lines.append(
+            f"- {home_name} (ID {home_team_id}) scored {home_score} vs {away_name} (ID {away_team_id}) scored {away_score}"
+        )
+
+    lines.append("\nStandings (rough):")
+    # Basic standings from 'teams' JSON (sorted by overall wins desc)
+    teams_list = []
+    for team in teams_json.get("teams", []):
         tid = team.get("id")
+        name = espn_team_lookup.get(tid, {}).get("name", f"Team {tid}")
         record = team.get("record", {}).get("overall", {})
         wins = record.get("wins", 0)
         losses = record.get("losses", 0)
         ties = record.get("ties", 0)
-        lines.append(f"- Team {tid}: {wins}-{losses}-{ties}")
+        teams_list.append((tid, name, wins, losses, ties))
+
+    teams_list.sort(key=lambda x: x[2], reverse=True)
+    for tid, name, w, l, t in teams_list:
+        lines.append(f"- {name} (ID {tid}): {w}-{l}-{t}")
 
     return "\n".join(lines)
 
@@ -139,7 +179,7 @@ def send_email(newsletter_html, recipients):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"{SUBJECT_PREFIX} Fantasy Baseball Weekly Recap"
     msg["From"] = FROM_ADDRESS
-    msg["To"] = FROM_ADDRESS  # To yourself; others BCC
+    msg["To"] = FROM_ADDRESS  # To yourself; others in BCC
 
     part_html = MIMEText(newsletter_html, "html")
     msg.attach(part_html)
@@ -151,14 +191,17 @@ def send_email(newsletter_html, recipients):
 
 
 def main():
-    scoreboard, standings = get_espn_league_data()
-    summary_text = build_summary(scoreboard, standings)
+    scoreboard, teams_json = get_espn_data()
+    summary_text = build_summary(scoreboard, teams_json)
     newsletter_md = generate_newsletter(summary_text)
 
-    # For now, just send the same email to everyone BCC.
-    recipients = [team["email"] for team in TEAMS]
+    # Decide recipients
+    if TEST_MODE:
+        recipients = [TEST_RECIPIENT]
+    else:
+        recipients = [team["email"] for team in TEAMS]
 
-    # Convert markdown-ish text to basic HTML (very simple)
+    # Convert markdown-ish text to simple HTML
     html = "<html><body>"
     for line in newsletter_md.split("\n"):
         if line.startswith("#"):
