@@ -2,8 +2,9 @@ import os
 import json
 import smtplib
 import ssl
-from email.mime_text import MIMEText
+from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
 
 import requests
 from openai import OpenAI
