@@ -2,13 +2,14 @@ import os
 import json
 import smtplib
 import ssl
-from datetime import datetime, date
+from datetime import date
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 from openai import OpenAI
 from espn_api.baseball import League
 
+# Load config
 with open("config.json", "r") as f:
     CONFIG = json.load(f)
 
@@ -28,6 +29,7 @@ JIM_TEAM_NAME = CONFIG["style"]["jim_team_name"]
 SCHEDULE = CONFIG["schedule"]
 TEAMS = CONFIG["teams"]
 
+# Secrets from GitHub Actions
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 ESPN_S2 = os.environ["ESPN_S2"]
 SWID = os.environ["SWID"]
@@ -37,14 +39,17 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 def parse_ymd(s):
+    """Parse YYYY-MM-DD string to date object."""
     return date.fromisoformat(s)
 
 
 def today_mdt():
+    """Get today's date (MDT)."""
     return date.today()
 
 
 def newsletter_mode_for_today(today):
+    """Determine if today is a scheduled newsletter day and what type."""
     if today == parse_ymd(SCHEDULE["draft_issue_date"]):
         return "draft"
     if today == parse_ymd(SCHEDULE["finale_date"]):
@@ -59,6 +64,7 @@ def newsletter_mode_for_today(today):
 
 
 def get_league():
+    """Create League object via espn-api."""
     return League(
         league_id=LEAGUE_ID,
         year=SEASON_ID,
@@ -68,11 +74,12 @@ def get_league():
 
 
 def build_team_lookups(league):
+    """Build ESPN and config team lookups."""
     espn_lookup = {}
     for team in league.teams:
         espn_lookup[team.team_id] = {
-            "name": team.team_name,
-            "abbrev": team.team_abbrev
+            "name": getattr(team, "team_name", f"Team {team.team_id}"),
+            "abbrev": getattr(team, "team_abbrev", "")
         }
 
     config_lookup = {}
@@ -83,176 +90,190 @@ def build_team_lookups(league):
 
 
 def build_summary(league, mode):
+    """Build compact data summary for LLM."""
     espn_lookup, config_lookup = build_team_lookups(league)
     data = league._fetch_league()
     schedule = data.get("schedule", [])
 
     lines = []
 
+    # Debug team mapping
     lines.append("Teams in league (from ESPN):")
     for tid, info in espn_lookup.items():
         cfg = config_lookup.get(tid)
-        cfg_name = cfg["team_name"] if cfg else "NO_CONFIG_NAME"
-        lines.append(
-            f"- ID {tid}: ESPN name '{info['name']}' (abbrev {info['abbrev']}), config name '{cfg_name}'"
-        )
+        cfg_name = cfg["team_name"] if cfg else "MISSING_FROM_CONFIG"
+        lines.append(f"- ID {tid}: '{info['name']}' → config '{cfg_name}'")
 
+    # Mode context
+    lines.append(f"\nMode: {mode}")
     if mode == "draft":
-        lines.append("\nNewsletter context:")
-        lines.append("- This is the draft-night / season kickoff issue.")
-        lines.append("- Focus on draft reactions, roster construction, early favorites, and the defending champ.")
+        lines.append("- Post-draft kickoff issue")
     elif mode == "playoff":
-        lines.append("\nNewsletter context:")
-        lines.append("- This is a playoff-week issue.")
-        lines.append("- Focus on bracket implications, teams still alive, consolation games, and pressure.")
+        lines.append("- Playoff bracket week")
     elif mode == "finale":
-        lines.append("\nNewsletter context:")
-        lines.append("- This is the final season issue.")
-        lines.append("- Focus on championship results, final standings, season awards, and full-season commentary.")
-    else:
-        lines.append("\nNewsletter context:")
-        lines.append("- This is a regular weekly recap.")
+        lines.append("- Championship + season wrap")
 
+    # Current matchups
     matchup_periods = [m.get("matchupPeriodId") for m in schedule if "matchupPeriodId" in m]
     current_period = max(matchup_periods) if matchup_periods else None
 
-    lines.append("\nWeekly Matchups:")
-    has_any_matchup = False
+    lines.append("\nMatchups:")
+    has_matchups = False
     for matchup in schedule:
-        if current_period is not None and matchup.get("matchupPeriodId") != current_period:
+        if current_period and matchup.get("matchupPeriodId") != current_period:
             continue
-
         home = matchup.get("home")
         away = matchup.get("away")
-        if not home or not away:
+        if not (home and away):
             continue
 
-        home_team_id = home.get("teamId")
-        away_team_id = away.get("teamId")
+        home_id = home.get("teamId")
+        away_id = away.get("teamId")
         home_score = home.get("totalPoints", 0)
         away_score = away.get("totalPoints", 0)
+        
+        home_name = espn_lookup.get(home_id, {}).get("name", f"Team {home_id}")
+        away_name = espn_lookup.get(away_id, {}).get("name", f"Team {away_id}")
 
-        home_name = espn_lookup.get(home_team_id, {}).get("name", f"Team {home_team_id}")
-        away_name = espn_lookup.get(away_team_id, {}).get("name", f"Team {away_team_id}")
+        lines.append(f"- {home_name} {home_score} vs {away_name} {away_score}")
+        has_matchups = True
 
-        lines.append(
-            f"- {home_name} (ID {home_team_id}) scored {home_score} vs "
-            f"{away_name} (ID {away_team_id}) scored {away_score}"
-        )
-        has_any_matchup = True
+    if not has_matchups:
+        lines.append("- No matchups this period")
 
-    if not has_any_matchup:
-        lines.append("- No completed matchups found for the current scoring period yet.")
-
-    lines.append("\nStandings (rough):")
+    # Standings
+    lines.append("\nStandings:")
     teams_list = []
     for team in league.teams:
         tid = getattr(team, "team_id", None)
         name = getattr(team, "team_name", f"Team {tid}")
+        
+        # Defensive record parsing
+        wins = getattr(team, "wins", 0) or 0
+        losses = getattr(team, "losses", 0) or 0
+        ties = getattr(team, "ties", 0) or 0
+        
+        if not wins and not losses:
+            rec = getattr(team, "record", {})
+            wins = rec.get("wins", 0)
+            losses = rec.get("losses", 0)
+            ties = rec.get("ties", 0)
+        
+        teams_list.append((tid or 0, name, wins, losses, ties))
 
-        wins = getattr(team, "wins", None)
-        losses = getattr(team, "losses", None)
-        ties = getattr(team, "ties", None)
-
-        if wins is None or losses is None:
-            rec = getattr(team, "record", None)
-            if isinstance(rec, dict):
-                wins = rec.get("wins", 0)
-                losses = rec.get("losses", 0)
-                ties = rec.get("ties", 0)
-            else:
-                wins, losses, ties = 0, 0, 0
-
-        teams_list.append((tid, name, wins, losses, ties))
-
-    teams_list.sort(key=lambda x: x[2], reverse=True)
-    for tid, name, w, l, t in teams_list:
-        lines.append(f"- {name} (ID {tid}): {w}-{l}-{t}")
+    for tid, name, w, l, t in sorted(teams_list, key=lambda x: x[2], reverse=True):
+        lines.append(f"- {name}: {w}-{l}-{t}")
 
     return "\n".join(lines)
 
 
 def build_prompt(summary_text, mode):
-    rules = [
-        f"Trash talk level: {TRASH_TALK_LEVEL} (on a 1-10 scale).",
-        "Do not use any swear words.",
-        "Be funny, confident, and snarky, but not mean-spirited.",
-        f"Shane is the returning champion and should be called out as such when relevant. Shane's team name: {SHANE_TEAM_NAME}.",
-        f"Jim is the league manager and can be roasted more than others. Jim's team name: {JIM_TEAM_NAME}.",
-        "Write a general league update first (1-3 short sections).",
-        "Then write a personalized section for each team mentioned in the data.",
-        "For each team section, include: last week's performance, one joke or comment, and one suggestion for improvement (waiver, roster, or lineup idea).",
-        "Keep everything PG, no profanity, nothing off-color."
+    """Build Axios-style newsletter prompt."""
+    base_rules = [
+        f"Trash talk: {TRASH_TALK_LEVEL}/10 - sharp but PG.",
+        "No swearing. Funny, confident, snarky, never mean.",
+        f"Call out {SHANE_TEAM_NAME} as defending champ.",
+        f"Roast {JIM_TEAM_NAME} harder (league manager).",
+        "Write like Axios: crisp, scannable, bold headers.",
+        "Short paragraphs. 1-2 sentences max per idea.",
+        "Team spotlights blend: performance + snark + 1 tip. No labels.",
+        "Structure: league news → team spotlights → close."
     ]
 
-    extra_mode_rules = []
-    if mode == "draft":
-        extra_mode_rules = [
-            "This is the season kickoff issue after the draft.",
-            "Talk about draft winners, reach picks, roster construction, and early expectations.",
-            "Include a fun opening welcome to the new season."
-        ]
-    elif mode == "playoff":
-        extra_mode_rules = [
-            "This is a playoff-week issue.",
-            "Comment on who is alive for the title and who is fighting in consolation rounds.",
-            "Reference bracket pressure and every lineup decision mattering more than ever."
-        ]
-    elif mode == "finale":
-        extra_mode_rules = [
-            "This is the final issue of the season.",
-            "Include championship results, final standings, and season-long takeaways.",
-            "Mention season awards like biggest surprise, biggest disappointment, waiver gem, and collapse."
-        ]
+    mode_rules = {
+        "draft": [
+            "Post-draft kickoff. Hype the new season.",
+            "Rank draft winners/losers. Call reaches.",
+            "Set expectations for the defending champ."
+        ],
+        "playoff": [
+            "Playoff stakes are real now.",
+            "Who's alive? Who's consolation?",
+            "Every move matters."
+        ],
+        "finale": [
+            "Championship decided. Season awards.",
+            "Biggest surprise, bust, waiver gem.",
+            "Full-year victory lap."
+        ],
+        "weekly": ["Regular week. Recaps + forward look."]
+    }
 
     system_msg = (
-        "You are an AI writing weekly fantasy baseball newsletters for a private ESPN league. "
-        "You specialize in playful trash talk, league lore, and practical fantasy advice."
+        "You're a sharp fantasy baseball newsletter editor. "
+        "Write like Axios: punchy, scannable, brutally honest but fun. "
+        "Smart Brevity™ style - bold headers, tight prose."
     )
 
-    user_msg = f"""Here is the league data for the current issue:
+    user_msg = f"""League data:
 
 {summary_text}
 
-League rules and tone:
-{chr(10).join('- ' + r for r in rules + extra_mode_rules)}
+Voice & rules:
+{chr(10).join('- ' + r for r in base_rules + mode_rules.get(mode, mode_rules['weekly']))}
 
-Write an email-style newsletter. Use markdown headings for sections.
+Write a newsletter in **markdown**. Use:
+- ## Headers
+- **Bold phrases**
+- Short paragraphs
+- - Bullets for scannability
+
+Format like this:
+## 1 Big Thing
+**Why it matters:** One sentence.
+- Key detail 1
+- Key detail 2
+
+## Team Spotlights
+**{Team Name}**  
+Natural flow of performance, snark, tip.
+
+## The Big Board
+Standings snapshot.
+
+## What's Next
+Forward look.
 """
 
     return system_msg, user_msg
 
 
 def generate_newsletter(summary_text, mode):
+    """Generate newsletter via OpenAI."""
     system_msg, user_msg = build_prompt(summary_text, mode)
-
+    
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
             {"role": "system", "content": system_msg},
             {"role": "user", "content": user_msg}
-        ]
+        ],
+        temperature=0.7,
+        max_tokens=2000
     )
-
+    
     return response.choices[0].message.content
 
 
 def send_email(newsletter_html, recipients, mode):
-    subject_suffix = {
-        "draft": "Draft Night Special",
-        "weekly": "Weekly Recap",
-        "playoff": "Playoff Push",
-        "finale": "Season Finale"
-    }.get(mode, "Weekly Recap")
-
+    """Send HTML email."""
+    subject_map = {
+        "draft": "Draft Night Special", 
+        "weekly": "Weekly Beatdown",
+        "playoff": "Playoff Bloodbath", 
+        "finale": "Championship Glory"
+    }
+    
+    subject = f"{SUBJECT_PREFIX} {subject_map.get(mode, 'Weekly Roundup')}"
+    
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"{SUBJECT_PREFIX} {subject_suffix}"
+    msg["Subject"] = subject
     msg["From"] = FROM_ADDRESS
-    msg["To"] = FROM_ADDRESS
-
+    msg["To"] = FROM_ADDRESS  # BCC others
+    
     part_html = MIMEText(newsletter_html, "html")
     msg.attach(part_html)
-
+    
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
         server.login(FROM_ADDRESS, GMAIL_APP_PASSWORD)
@@ -260,31 +281,42 @@ def send_email(newsletter_html, recipients, mode):
 
 
 def main():
+    """Main execution."""
     today = today_mdt()
     mode = newsletter_mode_for_today(today)
-
+    
     if mode is None:
-        print("No newsletter scheduled for today.")
+        print(f"No newsletter today ({today}). Next: check schedule.")
         return
-
+    
+    print(f"Generating {mode} newsletter for {today}...")
+    
     league = get_league()
-    summary_text = build_summary(league, mode)
-    newsletter_md = generate_newsletter(summary_text, mode)
-
-    if TEST_MODE:
-        recipients = [TEST_RECIPIENT]
-    else:
-        recipients = [team["email"] for team in TEAMS]
-
-    html = "<html><body>"
+    summary = build_summary(league, mode)
+    newsletter_md = generate_newsletter(summary, mode)
+    
+    recipients = [TEST_RECIPIENT] if TEST_MODE else [t["email"] for t in TEAMS]
+    
+    # Simple markdown → HTML
+    html = "<html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>"
     for line in newsletter_md.split("\n"):
-        if line.startswith("#"):
-            html += f"<h3>{line.lstrip('# ').strip()}</h3>"
+        line = line.strip()
+        if not line:
+            html += "<br>"
+        elif line.startswith("##"):
+            html += f"<h2 style='color:#333;'>{line[2:].strip()}</h2>"
+        elif line.startswith("###"):
+            html += f"<h3 style='color:#666;'>{line[3:].strip()}</h3>"
+        elif line.startswith("**"):
+            html += f"<p><strong>{line[2:-2]}</strong></p>" if line.endswith("**") else f"<strong>{line[2:]}</strong>"
+        elif line.startswith("- "):
+            html += f"<li>{line[2:]}</li>"
         else:
             html += f"<p>{line}</p>"
     html += "</body></html>"
-
+    
     send_email(html, recipients, mode)
+    print(f"Newsletter sent to {len(recipients)} recipient(s) ({mode} mode)")
 
 
 if __name__ == "__main__":
