@@ -12,8 +12,8 @@
   "style": {
     "trash_talk_level": 6,
     "no_swearing": true,
-    "shane_team_name": "Shane's Team",
-    "jim_team_name": "Jim's Team"
+    "shane_team_name": "St George Sentinels",
+    "jim_team_name": "Mudville 9"
   },
   "schedule": {
     "draft_issue_date": "2026-03-28",
@@ -30,78 +30,78 @@
       "team_name": "Mudville 9",
       "manager_name": "Jim",
       "email": "jimlaudie@gmail.com"
-    }
+    },
     {
       "team_id": 7,
       "team_name": "Bryce Krispies",
       "manager_name": "Jon",
       "email": "jonlaudie@gmail.com"
-    }
+    },
     {
       "team_id": 11,
       "team_name": "The Grand Slammers",
       "manager_name": "Joy",
       "email": "joylaudie@gmail.com"
-    }
+    },
     {
       "team_id": 14,
       "team_name": "Hobbits of the Shire",
       "manager_name": "Conner",
       "email": "ctbruderer@gmail.com"
-    }
+    },
     {
       "team_id": 19,
       "team_name": "Bye Bye Balboni",
       "manager_name": "Steve",
       "email": "stephenson.beck@ndsu.edu"
-    }
-    {
-      "team_id": 22,
-      "team_name": "St George Sentinels",
-      "manager_name": "Shane",
-      "email": "shjohanson70.com"
-    }
-    {
-      "team_id": 23,
-      "team_name": "Cardinals all the way",
-      "manager_name": "Steve",
-      "email": "salaudie@gmail.com"
-    }
-    {
-      "team_id": 26,
-      "team_name": "WAR Zone",
-      "manager_name": "Mitch",
-      "email": "mitchbateman21@gmail.com"
-    }
-    {
-      "team_id": 27,
-      "team_name": "Salvy Splash",
-      "manager_name": "Ben",
-      "email": "benlaudie@gmail.com"
-    }
-    {
-      "team_id": 28,
-      "team_name": "Braves for the win!",
-      "manager_name": "Jon",
-      "email": "jfox@agreserves.com"
-    }
-    {
-      "team_id": 29,
-      "team_name": "The Backyard Bunch",
-      "manager_name": "Sam",
-      "email": "samboyojo@gmail.com"
-    }
-    {
-      "team_id": 30,
-      "team_name": "JakeTheMake",
-      "manager_name": "Jake",
-      "email": "trueblueprobert@gmail.com"
-    }
+    },
     {
       "team_id": 21,
       "team_name": "Mike's Magnificent Team",
       "manager_name": "Mike",
       "email": "shamoml@gmail.com"
+    },
+    {
+      "team_id": 22,
+      "team_name": "St George Sentinels",
+      "manager_name": "Shane",
+      "email": "shjohanson70@gmail.com"
+    },
+    {
+      "team_id": 23,
+      "team_name": "Cardinals all the way",
+      "manager_name": "Steve",
+      "email": "salaudie@gmail.com"
+    },
+    {
+      "team_id": 26,
+      "team_name": "WAR Zone",
+      "manager_name": "Mitch",
+      "email": "mitchbateman21@gmail.com"
+    },
+    {
+      "team_id": 27,
+      "team_name": "Salvy Splash",
+      "manager_name": "Ben",
+      "email": "benlaudie@gmail.com"
+    },
+    {
+      "team_id": 28,
+      "team_name": "Braves for the win!",
+      "manager_name": "Jon",
+      "email": "jfox@agreserves.com"
+    },
+    {
+      "team_id": 29,
+      "team_name": "The Backyard Bunch",
+      "manager_name": "Sam",
+      "email": "samboyojo@gmail.com"
+    },
+    {
+      "team_id": 30,
+      "team_name": "JakeTheMake",
+      "manager_name": "Jake",
+      "email": "trueblueprobert@gmail.com"
     }
   ]
 }
