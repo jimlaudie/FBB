@@ -78,7 +78,7 @@ def build_team_lookups(league):
     espn_lookup = {}
     for team in league.teams:
         espn_lookup[team.team_id] = {
-            "name": getattr(team, "team_name", f"Team {team.team_id}"),
+            "name": getattr(team, "team_name", "Team {tid}".format(tid=team.team_id)),
             "abbrev": getattr(team, "team_abbrev", "")
         }
 
@@ -102,10 +102,14 @@ def build_summary(league, mode):
     for tid, info in espn_lookup.items():
         cfg = config_lookup.get(tid)
         cfg_name = cfg["team_name"] if cfg else "MISSING_FROM_CONFIG"
-        lines.append(f"- ID {tid}: '{info['name']}' → config '{cfg_name}'")
+        lines.append("- ID {tid}: '{ename}' → config '{cfgname}'".format(
+            tid=tid,
+            ename=info["name"],
+            cfgname=cfg_name
+        ))
 
     # Mode context
-    lines.append(f"\nMode: {mode}")
+    lines.append("\nMode: {mode}".format(mode=mode))
     if mode == "draft":
         lines.append("- Post-draft kickoff issue")
     elif mode == "playoff":
@@ -131,11 +135,16 @@ def build_summary(league, mode):
         away_id = away.get("teamId")
         home_score = home.get("totalPoints", 0)
         away_score = away.get("totalPoints", 0)
-        
-        home_name = espn_lookup.get(home_id, {}).get("name", f"Team {home_id}")
-        away_name = espn_lookup.get(away_id, {}).get("name", f"Team {away_id}")
 
-        lines.append(f"- {home_name} {home_score} vs {away_name} {away_score}")
+        home_name = espn_lookup.get(home_id, {}).get("name", "Team {tid}".format(tid=home_id))
+        away_name = espn_lookup.get(away_id, {}).get("name", "Team {tid}".format(tid=away_id))
+
+        lines.append("- {hname} {hscore} vs {aname} {ascore}".format(
+            hname=home_name,
+            hscore=home_score,
+            aname=away_name,
+            ascore=away_score
+        ))
         has_matchups = True
 
     if not has_matchups:
@@ -146,23 +155,31 @@ def build_summary(league, mode):
     teams_list = []
     for team in league.teams:
         tid = getattr(team, "team_id", None)
-        name = getattr(team, "team_name", f"Team {tid}")
-        
-        # Defensive record parsing
-        wins = getattr(team, "wins", 0) or 0
-        losses = getattr(team, "losses", 0) or 0
-        ties = getattr(team, "ties", 0) or 0
-        
+        name = getattr(team, "team_name", "Team {tid}".format(tid=tid))
+
+        wins_val = getattr(team, "wins", 0)
+        losses_val = getattr(team, "losses", 0)
+        ties_val = getattr(team, "ties", 0)
+
+        wins = wins_val if wins_val is not None else 0
+        losses = losses_val if losses_val is not None else 0
+        ties = ties_val if ties_val is not None else 0
+
         if not wins and not losses:
             rec = getattr(team, "record", {})
             wins = rec.get("wins", 0)
             losses = rec.get("losses", 0)
             ties = rec.get("ties", 0)
-        
+
         teams_list.append((tid or 0, name, wins, losses, ties))
 
     for tid, name, w, l, t in sorted(teams_list, key=lambda x: x[2], reverse=True):
-        lines.append(f"- {name}: {w}-{l}-{t}")
+        lines.append("- {name}: {wins}-{losses}-{ties}".format(
+            name=name,
+            wins=w,
+            losses=l,
+            ties=t
+        ))
 
     return "\n".join(lines)
 
@@ -170,12 +187,12 @@ def build_summary(league, mode):
 def build_prompt(summary_text, mode):
     """Build Axios-style newsletter prompt."""
     base_rules = [
-        f"Trash talk: {TRASH_TALK_LEVEL}/10 - sharp but PG.",
+        "Trash talk: {ttl}/10 - sharp but PG.".format(ttl=TRASH_TALK_LEVEL),
         "No swearing. Funny, confident, snarky, never mean.",
-        f"Call out {SHANE_TEAM_NAME} as defending champ.",
-        f"Roast {JIM_TEAM_NAME} harder (league manager).",
+        "Call out {shane} as defending champ.".format(shane=SHANE_TEAM_NAME),
+        "Roast {jim} harder (league manager).".format(jim=JIM_TEAM_NAME),
         "Write like Axios: crisp, scannable, bold headers.",
-        "Short paragraphs. 1-2 sentences max per idea.",
+        "Short paragraphs. 1–2 sentences max per idea.",
         "Team spotlights blend: performance + snark + 1 tip. No labels.",
         "Structure: league news → team spotlights → close."
     ]
@@ -196,7 +213,9 @@ def build_prompt(summary_text, mode):
             "Biggest surprise, bust, waiver gem.",
             "Full-year victory lap."
         ],
-        "weekly": ["Regular week. Recaps + forward look."]
+        "weekly": [
+            "Regular week. Recaps + forward look."
+        ]
     }
 
     system_msg = (
@@ -205,35 +224,33 @@ def build_prompt(summary_text, mode):
         "Smart Brevity™ style - bold headers, tight prose."
     )
 
-    user_msg = f"""League data:
-
-{summary_text}
-
-Voice & rules:
-{chr(10).join('- ' + r for r in base_rules + mode_rules.get(mode, mode_rules['weekly']))}
-
-Write a newsletter in **markdown**. Use:
-- ## Headers
-- **Bold phrases**
-- Short paragraphs
-- - Bullets for scannability
-
-Format like this:
-## 1 Big Thing
-**Why it matters:** One sentence.
-- Key detail 1
-- Key detail 2
-
-## Team Spotlights
-**{Team Name}**  
-Natural flow of performance, snark, tip.
-
-## The Big Board
-Standings snapshot.
-
-## What's Next
-Forward look.
-"""
+    mode_list = mode_rules.get(mode, mode_rules["weekly"])
+    user_msg = (
+        "League data:\n\n"
+        "{summary}\n\n"
+        "Voice & rules:\n"
+        "{rules}\n\n"
+        "Write a newsletter in **markdown**. Use:\n"
+        "- ## Headers\n"
+        "- **Bold phrases**\n"
+        "- Short paragraphs\n"
+        "- - Bullets for scannability\n\n"
+        "Format like this:\n"
+        "## 1 Big Thing\n"
+        "**Why it matters:** One sentence.\n"
+        "- Key detail 1\n"
+        "- Key detail 2\n\n"
+        "## Team Spotlights\n"
+        "**{{Team Name}}**  \n"
+        "Natural flow of performance, snark, tip.\n\n"
+        "## The Big Board\n"
+        "Standings snapshot.\n\n"
+        "## What's Next\n"
+        "Forward look."
+    ).format(
+        summary=summary_text,
+        rules="\n".join("- {r}".format(r=r) for r in base_rules + mode_list)
+    )
 
     return system_msg, user_msg
 
@@ -241,7 +258,7 @@ Forward look.
 def generate_newsletter(summary_text, mode):
     """Generate newsletter via OpenAI."""
     system_msg, user_msg = build_prompt(summary_text, mode)
-    
+
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
@@ -251,29 +268,33 @@ def generate_newsletter(summary_text, mode):
         temperature=0.7,
         max_tokens=2000
     )
-    
+
     return response.choices[0].message.content
 
 
 def send_email(newsletter_html, recipients, mode):
     """Send HTML email."""
     subject_map = {
-        "draft": "Draft Night Special", 
+        "draft": "Draft Night Special",
         "weekly": "Weekly Beatdown",
-        "playoff": "Playoff Bloodbath", 
+        "playoff": "Playoff Bloodbath",
         "finale": "Championship Glory"
     }
-    
-    subject = f"{SUBJECT_PREFIX} {subject_map.get(mode, 'Weekly Roundup')}"
-    
+
+    subject = "{prefix} {title}".format(
+        prefix=SUBJECT_PREFIX,
+        title=subject_map.get(mode, "Weekly Roundup")
+    )
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = FROM_ADDRESS
-    msg["To"] = FROM_ADDRESS  # BCC others
-    
+    # BCC others; To can be dummy
+    msg["To"] = FROM_ADDRESS
+
     part_html = MIMEText(newsletter_html, "html")
     msg.attach(part_html)
-    
+
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
         server.login(FROM_ADDRESS, GMAIL_APP_PASSWORD)
@@ -284,39 +305,48 @@ def main():
     """Main execution."""
     today = today_mdt()
     mode = newsletter_mode_for_today(today)
-    
+
     if mode is None:
-        print(f"No newsletter today ({today}). Next: check schedule.")
+        print("No newsletter today ({today}). Next: check schedule.".format(today=today))
         return
-    
-    print(f"Generating {mode} newsletter for {today}...")
-    
+
+    print("Generating {mode} newsletter for {today}...".format(mode=mode, today=today))
+
     league = get_league()
     summary = build_summary(league, mode)
     newsletter_md = generate_newsletter(summary, mode)
-    
+
     recipients = [TEST_RECIPIENT] if TEST_MODE else [t["email"] for t in TEAMS]
-    
+
     # Simple markdown → HTML
-    html = "<html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>"
+    html = (
+        "<html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>"
+    )
     for line in newsletter_md.split("\n"):
         line = line.strip()
         if not line:
             html += "<br>"
-        elif line.startswith("##"):
-            html += f"<h2 style='color:#333;'>{line[2:].strip()}</h2>"
-        elif line.startswith("###"):
-            html += f"<h3 style='color:#666;'>{line[3:].strip()}</h3>"
+        elif line.startswith("## "):
+            html += "<h2 style='color:#333;'>{text}</h2>".format(text=line[3:].strip())
+        elif line.startswith("### "):
+            html += "<h3 style='color:#666;'>{text}</h3>".format(text=line[4:].strip())
+        elif line.startswith("**") and line.endswith("**"):
+            html += "<p><strong>{text}</strong></p>".format(text=line[2:-2])
         elif line.startswith("**"):
-            html += f"<p><strong>{line[2:-2]}</strong></p>" if line.endswith("**") else f"<strong>{line[2:]}</strong>"
+            html += "<p><strong>{text}</strong>".format(text=line[2:])
         elif line.startswith("- "):
-            html += f"<li>{line[2:]}</li>"
+            html += "<li>{text}</li>".format(text=line[2:])
         else:
-            html += f"<p>{line}</p>"
+            html += "<p>{text}</p>".format(text=line)
+
     html += "</body></html>"
-    
+
     send_email(html, recipients, mode)
-    print(f"Newsletter sent to {len(recipients)} recipient(s) ({mode} mode)")
+    print(
+        "Newsletter sent to {n} recipient(s) ({mode} mode)".format(
+            n=len(recipients), mode=mode
+        )
+    )
 
 
 if __name__ == "__main__":
