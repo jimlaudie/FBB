@@ -5,7 +5,7 @@
   },
   "email": {
     "from_address": "jimlaudie@gmail.com",
-    "subject_prefix": "[Fantasy Week in Review]",
+    "subject_prefix": "[Fantasy Week in Review-Bad News Bears]",
     "test_mode": true,
     "test_recipient": "jimlaudie@gmail.com"
   },
