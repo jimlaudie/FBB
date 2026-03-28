@@ -15,18 +15,21 @@
     "shane_team_name": "Shane's Team",
     "jim_team_name": "Jim's Team"
   },
+  "schedule": {
+    "draft_issue_date": "2026-03-28",
+    "draft_issue_time_mdt": "18:30",
+    "weekly_send_time_mdt": "08:00",
+    "start_weekly_date": "2026-04-06",
+    "skip_dates": ["2026-07-13"],
+    "playoff_dates": ["2026-09-07", "2026-09-14", "2026-09-21"],
+    "finale_date": "2026-09-28"
+  },
   "teams": [
     {
       "team_id": 1,
       "team_name": "TEMP NAME 1",
       "manager_name": "Manager 1",
       "email": "manager1@example.com"
-    },
-    {
-      "team_id": 2,
-      "team_name": "TEMP NAME 2",
-      "manager_name": "Manager 2",
-      "email": "manager2@example.com"
     }
   ]
 }
