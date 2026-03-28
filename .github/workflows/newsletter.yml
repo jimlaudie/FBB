@@ -1,14 +1,14 @@
-name: Weekly Fantasy Newsletter
+name: Fantasy Newsletter
 
 on:
   schedule:
-    - cron: "0 14 * * MON"  # Every Monday 14:00 UTC (~8am MDT)
-  workflow_dispatch: {}      # Allow manual run from GitHub UI
+    - cron: "0 8 * * 1"   # Mondays at 8:00 AM MDT handling via script date logic
+    - cron: "30 18 28 3 *" # One-time draft night run at 6:30 PM MDT on Mar 28, 2026
+  workflow_dispatch: {}
 
 jobs:
   run-newsletter:
     runs-on: ubuntu-latest
-
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
