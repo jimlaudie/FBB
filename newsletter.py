@@ -289,13 +289,15 @@ def send_email(newsletter_html, recipients, mode):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = FROM_ADDRESS
-    msg["To"] = FROM_ADDRESS  # header only; routing via `recipients` list
+    msg["To"] = FROM_ADDRESS  # header only; actual routing via `recipients` list
 
     part_html = MIMEText(newsletter_html, "html")
     msg.attach(part_html)
 
-    print(f"About to send to {len(recipients)} recipients: {recipients}")
-    print(f"From: {FROM_ADDRESS}, Subject: {subject}")
+    print("About to send to {n} recipients: {recipients}".format(
+        n=len(recipients), recipients=recipients))
+    print("From: {from_addr}, Subject: {subject}".format(
+        from_addr=FROM_ADDRESS, subject=subject))
 
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
@@ -306,17 +308,15 @@ def send_email(newsletter_html, recipients, mode):
         print("Email sent via SMTP_SSL (no explicit error)")
 
 
-
 def main():
     """Main execution."""
     today = today_mdt()
 
-    # ----------- TEMPORARY TEST MODE: remove when live -----------
-    # Ignore schedule logic for testing
+    # ----------- TEMPORARY TEST OVERRIDE: remove when live -----------
     mode = "weekly"
-    # ----------- END TEST MODE -----------
+    # ----------- END TEST OVERRIDE -----------
 
-    # Uncomment this block only when you want to enforce schedule again
+    # Uncomment to restore schedule logic (only for Mondays, etc.)
     # mode = newsletter_mode_for_today(today)
     # if mode is None:
     #     print("No newsletter today ({today}). Next: check schedule.".format(today=today))
@@ -325,37 +325,76 @@ def main():
     recipients = [TEST_RECIPIENT] if TEST_MODE else [t["email"] for t in TEAMS]
 
     print("TEST MODE: sending {mode} newsletter to: {recipients}".format(
-        mode=mode, recipients=recipients
-    ))
+        mode=mode, recipients=recipients))
 
     league = get_league()
     summary = build_summary(league, mode)
     newsletter_md = generate_newsletter(summary, mode)
 
-    # Simple markdown → HTML
+    # Markdown → HTML
     html = (
         "<html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>"
     )
-    for line in newsletter_md.split("\\n"):
+
+    in_ul = False
+    for line in newsletter_md.splitlines():
         line = line.strip()
+
         if not line:
+            if in_ul:
+                html += "</ul>"
+                in_ul = False
             html += "<br>"
-        elif line.startswith("## "):
-            html += "<h2 style='color:#333;'>{text}</h2>".format(text=line[3:].strip())
+            continue
+
+        if line.startswith("## "):
+            if in_ul:
+                html += "</ul>"
+                in_ul = False
+            text = line[3:].strip()
+            html += "<h2 style='color:#333;'>{text}</h2>".format(text=text)
+
         elif line.startswith("### "):
-            html += "<h3 style='color:#666;'>{text}</h3>".format(text=line[4:].strip())
+            if in_ul:
+                html += "</ul>"
+                in_ul = False
+            text = line[4:].strip()
+            html += "<h3 style='color:#666;'>{text}</h3>".format(text=text)
+
         elif line.startswith("**") and line.endswith("**"):
-            html += "<p><strong>{text}</strong></p>".format(text=line[2:-2])
+            if in_ul:
+                html += "</ul>"
+                in_ul = False
+            text = line[2:-2].strip()
+            html += "<p><strong>{text}</strong></p>".format(text=text)
+
         elif line.startswith("**"):
-            html += "<p><strong>{text}</strong>".format(text=line[2:])
+            if in_ul:
+                html += "</ul>"
+                in_ul = False
+            text = line[2:].strip()
+            html += "<p><strong>{text}</strong></p>".format(text=text)
+
         elif line.startswith("- "):
-            html += "<li>{text}</li>".format(text=line[2:])
+            if not in_ul:
+                html += "<ul>"
+                in_ul = True
+            text = line[2:].strip()
+            html += "<li>{text}</li>".format(text=text)
+
         else:
+            if in_ul:
+                html += "</ul>"
+                in_ul = False
             html += "<p>{text}</p>".format(text=line)
+
+    if in_ul:
+        html += "</ul>"
 
     html += "</body></html>"
 
     send_email(html, recipients, mode)
+
     print(
         "TEST NEWSLETTER: sent to {n} recipient(s) ({mode} mode)".format(
             n=len(recipients), mode=mode
