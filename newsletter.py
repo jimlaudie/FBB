@@ -309,17 +309,21 @@ def send_email(newsletter_html, recipients, mode):
 
 def main():
     """Main execution."""
-    today = today_mdt()  # or temporarily override it:
+    today = today_mdt()
 
-    # ----------- TEMPORARY TEST OVERRIDE (uncomment to test) -----------
-    # today = date(2026, 4, 6)  # pick any Monday you like
-    # ----------- END OVERRIDE -----------
-
-    # Completely ignore schedule logic for testing
+    # ----------- TEMPORARY TEST MODE: remove when live -----------
+    # Ignore schedule logic for testing
     mode = "weekly"
+    # ----------- END TEST MODE -----------
 
-    # DEBUG: show who we plan to email
+    # Uncomment this block only when you want to enforce schedule again
+    # mode = newsletter_mode_for_today(today)
+    # if mode is None:
+    #     print("No newsletter today ({today}). Next: check schedule.".format(today=today))
+    #     return
+
     recipients = [TEST_RECIPIENT] if TEST_MODE else [t["email"] for t in TEAMS]
+
     print("TEST MODE: sending {mode} newsletter to: {recipients}".format(
         mode=mode, recipients=recipients
     ))
