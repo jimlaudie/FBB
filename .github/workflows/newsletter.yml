@@ -2,9 +2,13 @@ name: Fantasy Newsletter
 
 on:
   schedule:
-    - cron: "0 8 * * 1"   # Mondays at 8:00 AM MDT handling via script date logic
-    - cron: "30 18 28 3 *" # One-time draft night run at 6:30 PM MDT on Mar 28, 2026
-  workflow_dispatch: {}
+    - cron: "0 14 * * 1"   # 8:00 AM MDT every Monday
+    - cron: "30 18 28 3 *" # 6:30 PM UTC on Mar 28, 2026 (one‑time draft night)
+  workflow_dispatch:
+    inputs:
+      test_date:
+        description: 'Test date (YYYY-MM-DD), e.g. 2026-04-06'
+        required: false
 
 jobs:
   run-newsletter:
