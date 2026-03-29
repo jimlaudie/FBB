@@ -309,26 +309,30 @@ def send_email(newsletter_html, recipients, mode):
 
 def main():
     """Main execution."""
-    today = today_mdt()
-    mode = newsletter_mode_for_today(today)
+    today = today_mdt()  # or temporarily override it:
 
-    if mode is None:
-        print("No newsletter today ({today}). Next: check schedule.".format(today=today))
-        return
+    # ----------- TEMPORARY TEST OVERRIDE (uncomment to test) -----------
+    # today = date(2026, 4, 6)  # pick any Monday you like
+    # ----------- END OVERRIDE -----------
 
-    print("Generating {mode} newsletter for {today}...".format(mode=mode, today=today))
+    # Completely ignore schedule logic for testing
+    mode = "weekly"
+
+    # DEBUG: show who we plan to email
+    recipients = [TEST_RECIPIENT] if TEST_MODE else [t["email"] for t in TEAMS]
+    print("TEST MODE: sending {mode} newsletter to: {recipients}".format(
+        mode=mode, recipients=recipients
+    ))
 
     league = get_league()
     summary = build_summary(league, mode)
     newsletter_md = generate_newsletter(summary, mode)
 
-    recipients = [TEST_RECIPIENT] if TEST_MODE else [t["email"] for t in TEAMS]
-
     # Simple markdown → HTML
     html = (
         "<html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>"
     )
-    for line in newsletter_md.split("\n"):
+    for line in newsletter_md.split("\\n"):
         line = line.strip()
         if not line:
             html += "<br>"
@@ -349,11 +353,11 @@ def main():
 
     send_email(html, recipients, mode)
     print(
-        "Newsletter sent to {n} recipient(s) ({mode} mode)".format(
+        "TEST NEWSLETTER: sent to {n} recipient(s) ({mode} mode)".format(
             n=len(recipients), mode=mode
         )
     )
-    print("First 300 chars of HTML body:")
+    print("First 300 chars of HTML body (for debugging):")
     print(html[:300])
 
 
