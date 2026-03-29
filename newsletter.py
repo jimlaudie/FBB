@@ -289,16 +289,22 @@ def send_email(newsletter_html, recipients, mode):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = FROM_ADDRESS
-    # BCC others; To can be dummy
-    msg["To"] = FROM_ADDRESS
+    msg["To"] = FROM_ADDRESS  # header only; routing via `recipients` list
 
     part_html = MIMEText(newsletter_html, "html")
     msg.attach(part_html)
 
+    print(f"About to send to {len(recipients)} recipients: {recipients}")
+    print(f"From: {FROM_ADDRESS}, Subject: {subject}")
+
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+        print("Connecting to SMTP_SSL (smtp.gmail.com:465)...")
         server.login(FROM_ADDRESS, GMAIL_APP_PASSWORD)
+        print("Logged in to Gmail SMTP")
         server.sendmail(FROM_ADDRESS, recipients, msg.as_string())
+        print("Email sent via SMTP_SSL (no explicit error)")
+
 
 
 def main():
@@ -346,6 +352,9 @@ def main():
         "Newsletter sent to {n} recipient(s) ({mode} mode)".format(
             n=len(recipients), mode=mode
         )
+    )
+    print("First 300 chars of HTML body:")
+    print(html[:300])
     )
 
 
