@@ -185,43 +185,49 @@ def build_summary(league, mode):
 
 
 def build_prompt(summary_text, mode):
-    """Build Axios-style newsletter prompt."""
+    """Build more entertaining, story‑driven newsletter prompt."""
     base_rules = [
-        "Trash talk: {ttl}/10 - sharp but PG.".format(ttl=TRASH_TALK_LEVEL),
-        "No swearing. Funny, confident, snarky, never mean.",
+        "Trash talk: {ttl}/10 - keep it PG but spicy.".format(ttl=TRASH_TALK_LEVEL),
+        "No swearing. Funny, confident, and a bit cheeky, but never mean.",
         "Call out {shane} as defending champ.".format(shane=SHANE_TEAM_NAME),
-        "Roast {jim} harder (league manager).".format(jim=JIM_TEAM_NAME),
-        "Write like Axios: crisp, scannable, bold headers.",
-        "Short paragraphs. 1–2 sentences max per idea.",
-        "Team spotlights blend: performance + snark + 1 tip. No labels.",
-        "Structure: league news → team spotlights → close."
+        "Roast {jim} extra hard (league manager).".format(jim=JIM_TEAM_NAME),
+        "Write like a lively sports column meets newsletter, not a dry recap.",
+        "Paragraphs can be 2–4 sentences; you’re allowed to lean into narrative.",
+        "Weave in storylines, rivalries, and personality for each team spotlight.",
+        "Still include: 1 big thing, winners/losers, team spotlights, standings snapshot, what’s next."
     ]
 
     mode_rules = {
         "draft": [
-            "Post-draft kickoff. Hype the new season.",
-            "Rank draft winners/losers. Call reaches.",
-            "Set expectations for the defending champ."
+            "Post‑draft kickoff. Celebrate the fresh start.",
+            "Rank draft winners/losers and call out the reaches.",
+            "Highlight the defending champ’s roster and the manager’s squad’s flaws.",
+            "Set the tone for the season: hype, paranoia, and hope."
         ],
         "playoff": [
-            "Playoff stakes are real now.",
-            "Who's alive? Who's consolation?",
-            "Every move matters."
+            "Playoff stakes are ramped up. This is the real season.",
+            "Who’s got life? Who’s already in the consolation conversation?",
+            "Emphasize the pressure, the momentum, and the must‑win matchups.",
+            "Make it feel like the last stretch of a playoff race."
         ],
         "finale": [
-            "Championship decided. Season awards.",
-            "Biggest surprise, bust, waiver gem.",
-            "Full-year victory lap."
+            "Championship decided. Wrap up the season like a season‑ending recap.",
+            "Award mini ‘titles’: biggest surprise, biggest bust, best waiver‑wire catch.",
+            "Give a victory lap to the champ and a sympathetic roast to the rest.",
+            "Add a 1‑2 paragraph closing reflection on the year."
         ],
         "weekly": [
-            "Regular week. Recaps + forward look."
+            "Regular week recap and look‑ahead, but with extra flavor.",
+            "Focus on storylines, rivalries, and juicy moments, not just numbers.",
+            "Feel free to personify teams, mock bad decisions, and hype good ones.",
+            "End with a punchy forward‑looking section that sets up the next week."
         ]
     }
 
     system_msg = (
-        "You're a sharp fantasy baseball newsletter editor. "
-        "Write like Axios: punchy, scannable, brutally honest but fun. "
-        "Smart Brevity™ style - bold headers, tight prose."
+        "You're a sharp, entertaining fantasy baseball newsletter writer. "
+        "Write like a mix of sports columnist and modern newsletter: "
+        "witty, opinionated, and a bit brash, but still readable and friendly for the whole league."
     )
 
     mode_list = mode_rules.get(mode, mode_rules["weekly"])
@@ -230,29 +236,23 @@ def build_prompt(summary_text, mode):
         "{summary}\n\n"
         "Voice & rules:\n"
         "{rules}\n\n"
-        "Write a newsletter in **markdown**. Use:\n"
-        "- ## Headers\n"
-        "- **Bold phrases**\n"
-        "- Short paragraphs\n"
-        "- - Bullets for scannability\n\n"
-        "Format like this:\n"
-        "## 1 Big Thing\n"
-        "**Why it matters:** One sentence.\n"
-        "- Key detail 1\n"
-        "- Key detail 2\n\n"
-        "## Team Spotlights\n"
-        "**{{Team Name}}**  \n"
-        "Natural flow of performance, snark, tip.\n\n"
-        "## The Big Board\n"
-        "Standings snapshot.\n\n"
-        "## What's Next\n"
-        "Forward look."
+        "Write a full newsletter in **plain text** (no Markdown, no emojis, no code blocks).\n"
+        "Use these sections as a guide, but feel free to lean into narrative and personality:\n"
+        "- Open with a short, punchy intro that sets the tone.\n"
+        "- 1 Big Thing: the main storyline of the week in 2–4 sentences.\n"
+        "- Winners & Losers: 2–6 short blurbs, 2–4 sentences each, with some light trash talk.\n"
+        "- Team Spotlights: 2–4 sentences per team, focusing on story, personality, and a hint of strategy.\n"
+        "- Standings Snapshot: 1–2 paragraphs showing how the league shape changed.\n"
+        "- What’s Next: 2–4 sentences teasing next week, upcoming matchups, or waiver‑wire targets.\n"
+        "- Close with a 1–2 sentence sign‑off that matches the tone.\n"
+        "Keep it under about 700–900 words total. Do not use any Markdown formatting."
     ).format(
         summary=summary_text,
         rules="\n".join("- {r}".format(r=r) for r in base_rules + mode_list)
     )
 
     return system_msg, user_msg
+
 
 
 def generate_newsletter(summary_text, mode):
