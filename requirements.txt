@@ -1,4 +1,5 @@
-requests
-openai
-espn-api
+# Core deps
+requests>=2.25.1
+openai>=1.0.0
+espn-api>=0.40.0
 
