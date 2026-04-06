@@ -18,7 +18,7 @@ SEASON_ID = CONFIG["league"]["season_id"]
 
 FROM_ADDRESS = CONFIG["email"]["from_address"]
 SUBJECT_PREFIX = CONFIG["email"]["subject_prefix"]
-TEST_MODE = CONFIG["email"].get("test_mode", True)
+TEST_MODE = CONFIG["email"].get("test_mode", False)
 TEST_RECIPIENT = CONFIG["email"].get("test_recipient", FROM_ADDRESS)
 
 TRASH_TALK_LEVEL = CONFIG["style"]["trash_talk_level"]
@@ -69,7 +69,7 @@ def get_league():
         league_id=LEAGUE_ID,
         year=SEASON_ID,
         swid=SWID,
-        espn_s2=ESPN_S2
+        espn_s2=ESPN_S2,
     )
 
 
@@ -79,7 +79,7 @@ def build_team_lookups(league):
     for team in league.teams:
         espn_lookup[team.team_id] = {
             "name": getattr(team, "team_name", "Team {tid}".format(tid=team.team_id)),
-            "abbrev": getattr(team, "team_abbrev", "")
+            "abbrev": getattr(team, "team_abbrev", ""),
         }
 
     config_lookup = {}
@@ -102,26 +102,30 @@ def build_summary(league, mode):
     for tid, info in espn_lookup.items():
         cfg = config_lookup.get(tid)
         cfg_name = cfg["team_name"] if cfg else "MISSING_FROM_CONFIG"
-        lines.append("- ID {tid}: '{ename}' → config '{cfgname}'".format(
-            tid=tid,
-            ename=info["name"],
-            cfgname=cfg_name
-        ))
+        lines.append(
+            "- ID {tid}: '{ename}' -> config '{cfgname}'".format(
+                tid=tid, ename=info["name"], cfgname=cfg_name
+            )
+        )
 
     # Mode context
-    lines.append("\nMode: {mode}".format(mode=mode))
+    lines.append("")
+    lines.append("Mode: {mode}".format(mode=mode))
     if mode == "draft":
-        lines.append("- Post-draft kickoff issue")
+        lines.append("- Post-draft kickoff issue.")
     elif mode == "playoff":
-        lines.append("- Playoff bracket week")
+        lines.append("- Playoff bracket week.")
     elif mode == "finale":
-        lines.append("- Championship + season wrap")
+        lines.append("- Championship + season wrap.")
 
     # Current matchups
-    matchup_periods = [m.get("matchupPeriodId") for m in schedule if "matchupPeriodId" in m]
+    matchup_periods = [
+        m.get("matchupPeriodId") for m in schedule if "matchupPeriodId" in m
+    ]
     current_period = max(matchup_periods) if matchup_periods else None
 
-    lines.append("\nMatchups:")
+    lines.append("")
+    lines.append("Matchups:")
     has_matchups = False
     for matchup in schedule:
         if current_period and matchup.get("matchupPeriodId") != current_period:
@@ -136,22 +140,29 @@ def build_summary(league, mode):
         home_score = home.get("totalPoints", 0)
         away_score = away.get("totalPoints", 0)
 
-        home_name = espn_lookup.get(home_id, {}).get("name", "Team {tid}".format(tid=home_id))
-        away_name = espn_lookup.get(away_id, {}).get("name", "Team {tid}".format(tid=away_id))
+        home_name = espn_lookup.get(home_id, {}).get(
+            "name", "Team {tid}".format(tid=home_id)
+        )
+        away_name = espn_lookup.get(away_id, {}).get(
+            "name", "Team {tid}".format(tid=away_id)
+        )
 
-        lines.append("- {hname} {hscore} vs {aname} {ascore}".format(
-            hname=home_name,
-            hscore=home_score,
-            aname=away_name,
-            ascore=away_score
-        ))
+        lines.append(
+            "- {hname} {hscore} vs {aname} {ascore}".format(
+                hname=home_name,
+                hscore=home_score,
+                aname=away_name,
+                ascore=away_score,
+            )
+        )
         has_matchups = True
 
     if not has_matchups:
         lines.append("- No matchups this period")
 
     # Standings
-    lines.append("\nStandings:")
+    lines.append("")
+    lines.append("Standings:")
     teams_list = []
     for team in league.teams:
         tid = getattr(team, "team_id", None)
@@ -174,37 +185,39 @@ def build_summary(league, mode):
         teams_list.append((tid or 0, name, wins, losses, ties))
 
     for tid, name, w, l, t in sorted(teams_list, key=lambda x: x[2], reverse=True):
-        lines.append("- {name}: {wins}-{losses}-{ties}".format(
-            name=name,
-            wins=w,
-            losses=l,
-            ties=t
-        ))
+        lines.append(
+            "- {name}: {wins}-{losses}-{ties}".format(
+                name=name, wins=w, losses=l, ties=t
+            )
+        )
 
     return "\n".join(lines)
 
 
 def build_prompt(summary_text, mode):
-    """Build Axios-style, concise fantasy newsletter prompt."""
+    """Build Axios-style, nicely formatted fantasy newsletter prompt (plain text output)."""
 
     base_rules = [
-        "Use Axios-style Smart Brevity.",
-        "Keep sections crisp and scannable.",
-        "Use bold lead-ins (like **Why it matters:**) and short bullets.",
+        "Use Axios-style Smart Brevity: short sections, clear headings, tight bullets.",
         "Keep total length around 400–700 words.",
-        "Tone: fun, witty, lightly trash-talky (about {lvl}/10), but PG and friendly.".format(
+        "Tone: fun, witty, and clearly trash-talky (about {lvl}/10), but PG and friendly.".format(
             lvl=TRASH_TALK_LEVEL
         ),
         "No swearing.",
         "Focus on the league as a whole, not just the commissioner.",
         "You may occasionally poke fun at the commissioner, but do NOT make him the main character.",
+        "Do NOT use any Markdown syntax: no asterisks for bold or italics, no '##' headings, no tables, no code blocks.",
+        "Use simple plain text headings instead (for example: '1 big thing', 'Winners & losers', 'Team spotlights').",
+        "Use blank lines to separate sections and bullets.",
     ]
 
     mode_rules = {
         "draft": [
             "This is a post-draft kickoff issue.",
             "Highlight draft steals, reaches, and overall vibes.",
-            "Set expectations for the defending champ and a few key contenders.",
+            "Set expectations for the defending champ {champ} and a few key contenders.".format(
+                champ=SHANE_TEAM_NAME
+            ),
         ],
         "playoff": [
             "This is a playoff week.",
@@ -214,7 +227,7 @@ def build_prompt(summary_text, mode):
         "finale": [
             "This is the season finale and wrap-up.",
             "Crown the champion, give a quick victory lap, and nod to heartbreaks.",
-            "Include a very short reflection on the season overall.",
+            "Include a short reflection on the season overall.",
         ],
         "weekly": [
             "This is a regular-season weekly recap.",
@@ -224,9 +237,8 @@ def build_prompt(summary_text, mode):
 
     system_msg = (
         "You are writing an Axios-style fantasy baseball newsletter for a home ESPN "
-        "head-to-head points league. Use Smart Brevity: short sections, bold lead-ins, "
-        "scannable bullets. Be witty and lightly trash-talky, but keep it PG and fun "
-        "for all ages."
+        "head-to-head points league. Use Smart Brevity: short sections and scannable bullets. "
+        "Be witty and lightly trash-talky, but keep it PG and fun."
     )
 
     mode_list = mode_rules.get(mode, mode_rules["weekly"])
@@ -236,29 +248,28 @@ def build_prompt(summary_text, mode):
         "{summary}\n\n"
         "Voice & style rules:\n"
         "{rules}\n\n"
-        "Write the newsletter in PLAIN TEXT, but structured like an Axios email. "
-        "Do NOT use code blocks or HTML. Use Markdown-style headings and bold text "
-        "in the output (e.g., '##', '**') so it can be post-processed into HTML.\n\n"
-        "Structure the newsletter roughly like this:\n"
-        "## 1 big thing\n"
-        "**Why it matters:** One or two sentences on the main storyline.\n"
+        "Write the newsletter in PLAIN TEXT ONLY (no Markdown, no asterisks, no '##', no tables, no emojis).\n"
+        "Use blank lines to separate sections.\n\n"
+        "Use this structure (you can tweak titles slightly but keep the spirit):\n"
+        "1 big thing\n"
+        "Why it matters: 1–2 sentences on the main storyline.\n"
         "- A couple of sharp bullets with key details.\n\n"
-        "## Winners & losers\n"
+        "Winners & losers\n"
         "Short sections calling out a few teams that crushed it and a few that face-planted. "
-        "1–2 sentences per bullet, max.\n\n"
-        "## Team spotlights\n"
+        "1–2 sentences per bullet, with fun trash talk.\n\n"
+        "Team spotlights\n"
         "Pick a handful of notable teams (not necessarily all 13). For each:\n"
-        "- Start with **Team Name** on its own line or as a bold lead-in.\n"
+        "- Start with the team name on its own line.\n"
         "- Give 2–3 sentences mixing performance, narrative, and a tiny bit of strategy or advice.\n\n"
-        "## Standings snapshot\n"
+        "Standings snapshot\n"
         "Summarize how the standings shifted. You can reference tiers (contenders, middle, basement) "
         "instead of listing every record.\n\n"
-        "## What’s next\n"
+        "What’s next\n"
         "A short look ahead: key matchups, interesting storylines, or waiver-wire angles.\n\n"
         "Constraints:\n"
         "- Keep it tight and scannable.\n"
-        "- Do NOT over-focus on the commissioner/league manager. He can be mentioned once in passing at most.\n"
-        "- No profanity; keep it family-friendly.\n"
+        "- Do NOT over-focus on the commissioner/league manager; he can be mentioned once in passing at most.\n"
+        "- No profanity.\n"
         "- No emojis.\n"
     ).format(
         summary=summary_text,
@@ -266,7 +277,6 @@ def build_prompt(summary_text, mode):
     )
 
     return system_msg, user_msg
-
 
 
 def generate_newsletter(summary_text, mode):
@@ -277,10 +287,10 @@ def generate_newsletter(summary_text, mode):
         model="gpt-4.1-mini",
         messages=[
             {"role": "system", "content": system_msg},
-            {"role": "user", "content": user_msg}
+            {"role": "user", "content": user_msg},
         ],
         temperature=0.7,
-        max_tokens=2000
+        max_tokens=2000,
     )
 
     return response.choices[0].message.content
@@ -292,26 +302,31 @@ def send_email(newsletter_html, recipients, mode):
         "draft": "Draft Night Special",
         "weekly": "Weekly Beatdown",
         "playoff": "Playoff Bloodbath",
-        "finale": "Championship Glory"
+        "finale": "Championship Glory",
     }
 
     subject = "{prefix} {title}".format(
-        prefix=SUBJECT_PREFIX,
-        title=subject_map.get(mode, "Weekly Roundup")
+        prefix=SUBJECT_PREFIX, title=subject_map.get(mode, "Weekly Roundup")
     )
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = FROM_ADDRESS
-    msg["To"] = FROM_ADDRESS  # header only; actual routing via `recipients` list
+    msg["To"] = FROM_ADDRESS  # header only; routing via recipients
 
     part_html = MIMEText(newsletter_html, "html")
     msg.attach(part_html)
 
-    print("About to send to {n} recipients: {recipients}".format(
-        n=len(recipients), recipients=recipients))
-    print("From: {from_addr}, Subject: {subject}".format(
-        from_addr=FROM_ADDRESS, subject=subject))
+    print(
+        "About to send to {n} recipients: {recipients}".format(
+            n=len(recipients), recipients=recipients
+        )
+    )
+    print(
+        "From: {from_addr}, Subject: {subject}".format(
+            from_addr=FROM_ADDRESS, subject=subject
+        )
+    )
 
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
@@ -322,95 +337,176 @@ def send_email(newsletter_html, recipients, mode):
         print("Email sent via SMTP_SSL (no explicit error)")
 
 
+def build_standings_table(league):
+    """Build an HTML standings table."""
+    rows = []
+    for team in league.teams:
+        name = getattr(
+            team, "team_name", "Team {tid}".format(tid=getattr(team, "team_id", 0))
+        )
+        # Try wins/losses/ties attributes; fall back to record dict if needed
+        wins = getattr(team, "wins", None)
+        losses = getattr(team, "losses", None)
+        ties = getattr(team, "ties", None)
+        if wins is None or losses is None:
+            rec = getattr(team, "record", {})
+            wins = rec.get("wins", 0)
+            losses = rec.get("losses", 0)
+            ties = rec.get("ties", 0)
+        rows.append((name, wins or 0, losses or 0, ties or 0))
+
+    # Sort by wins desc, then losses asc, then name
+    rows.sort(key=lambda r: (-r[1], r[2], r[0]))
+
+    html = "<h3 style='margin-top:24px;margin-bottom:8px;'>Standings</h3>"
+    html += "<table style='border-collapse:collapse;width:100%;max-width:600px;font-size:14px;'>"
+    html += (
+        "<tr>"
+        "<th style='border-bottom:1px solid #ccc;text-align:left;padding:4px;'>Team</th>"
+        "<th style='border-bottom:1px solid #ccc;text-align:left;padding:4px;'>W-L-T</th>"
+        "</tr>"
+    )
+    for name, w, l, t in rows:
+        rec_str = f"{w}-{l}-{t}"
+        html += (
+            "<tr>"
+            f"<td style='border-bottom:1px solid #eee;padding:4px;'>{name}</td>"
+            f"<td style='border-bottom:1px solid #eee;padding:4px;'>{rec_str}</td>"
+            "</tr>"
+        )
+    html += "</table>"
+    return html
+
+
+def build_matchups_table(league):
+    """Build an HTML table of this week's scores (if available)."""
+    html = "<h3 style='margin-top:24px;margin-bottom:8px;'>This week's scores</h3>"
+    html += "<table style='border-collapse:collapse;width:100%;max-width:600px;font-size:14px;'>"
+    html += (
+        "<tr>"
+        "<th style='border-bottom:1px solid #ccc;text-align:left;padding:4px;'>Matchup</th>"
+        "<th style='border-bottom:1px solid #ccc;text-align:left;padding:4px;'>Score</th>"
+        "</tr>"
+    )
+
+    has_row = False
+    try:
+        for matchup in league.scoreboard():
+            home = matchup.home_team
+            away = matchup.away_team
+            home_name = getattr(home, "team_name", "Home")
+            away_name = getattr(away, "team_name", "Away")
+            hs = getattr(matchup, "home_score", 0.0)
+            as_ = getattr(matchup, "away_score", 0.0)
+            label = f"{home_name} vs {away_name}"
+            score = f"{hs:.1f} – {as_:.1f}"
+            html += (
+                "<tr>"
+                f"<td style='border-bottom:1px solid #eee;padding:4px;'>{label}</td>"
+                f"<td style='border-bottom:1px solid #eee;padding:4px;'>{score}</td>"
+                "</tr>"
+            )
+            has_row = True
+    except Exception:
+        # If scoreboard fails (e.g., off week), just skip table body
+        pass
+
+    if not has_row:
+        html += (
+            "<tr>"
+            "<td colspan='2' style='padding:4px;'>Scores not available for this period.</td>"
+            "</tr>"
+        )
+
+    html += "</table>"
+    return html
+
+
 def main():
     """Main execution."""
     today = today_mdt()
 
-    # ----------- TEMPORARY TEST OVERRIDE: remove when live -----------
-    mode = "weekly"
-    # ----------- END TEST OVERRIDE -----------
-
-    # Uncomment to restore schedule logic (only for Mondays, etc.)
-    # mode = newsletter_mode_for_today(today)
-    # if mode is None:
-    #     print("No newsletter today ({today}). Next: check schedule.".format(today=today))
-    #     return
+    mode = newsletter_mode_for_today(today)
+    if mode is None:
+        print(
+            "No newsletter today ({today}). Next: check schedule.".format(today=today)
+        )
+        return
 
     recipients = [TEST_RECIPIENT] if TEST_MODE else [t["email"] for t in TEAMS]
 
-    print("TEST MODE: sending {mode} newsletter to: {recipients}".format(
-        mode=mode, recipients=recipients))
+    print(
+        "Sending {mode} newsletter for {today} to: {recipients}".format(
+            mode=mode, today=today, recipients=recipients
+        )
+    )
 
     league = get_league()
     summary = build_summary(league, mode)
-    newsletter_md = generate_newsletter(summary, mode)
+    newsletter_text = generate_newsletter(summary, mode)
 
-    # Markdown → HTML
+    # Base HTML wrapper
     html = (
-        "<html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>"
+        "<html><body style='font-family:Arial,sans-serif;max-width:650px;"
+        "margin:0 auto;padding:20px;line-height:1.5;font-size:15px;color:#222;'>"
     )
 
+    # Turn plain text sections into HTML paragraphs and lists
     in_ul = False
-    for line in newsletter_md.splitlines():
-        line = line.strip()
+    for line in newsletter_text.splitlines():
+        line = line.rstrip()
 
-        if not line:
+        if not line.strip():
             if in_ul:
                 html += "</ul>"
                 in_ul = False
             html += "<br>"
             continue
 
-        if line.startswith("## "):
+        # Simple heuristic: headings (no leading dash, relatively short)
+        if (
+            not line.startswith("- ")
+            and len(line.strip()) <= 40
+            and line.strip().lower() in [
+                "1 big thing",
+                "winners & losers",
+                "team spotlights",
+                "standings snapshot",
+                "what’s next",
+                "whats next",
+            ]
+        ):
             if in_ul:
                 html += "</ul>"
                 in_ul = False
-            text = line[3:].strip()
-            html += "<h2 style='color:#333;'>{text}</h2>".format(text=text)
-
-        elif line.startswith("### "):
-            if in_ul:
-                html += "</ul>"
-                in_ul = False
-            text = line[4:].strip()
-            html += "<h3 style='color:#666;'>{text}</h3>".format(text=text)
-
-        elif line.startswith("**") and line.endswith("**"):
-            if in_ul:
-                html += "</ul>"
-                in_ul = False
-            text = line[2:-2].strip()
-            html += "<p><strong>{text}</strong></p>".format(text=text)
-
-        elif line.startswith("**"):
-            if in_ul:
-                html += "</ul>"
-                in_ul = False
-            text = line[2:].strip()
-            html += "<p><strong>{text}</strong></p>".format(text=text)
-
-        elif line.startswith("- "):
+            html += "<h2 style='color:#333;margin-top:18px;margin-bottom:6px;'>{text}</h2>".format(
+                text=line.strip().title()
+            )
+        elif line.lstrip().startswith("- "):
             if not in_ul:
-                html += "<ul>"
+                html += "<ul style='padding-left:20px;margin-top:4px;margin-bottom:4px;'>"
                 in_ul = True
-            text = line[2:].strip()
+            text = line.lstrip()[2:].strip()
             html += "<li>{text}</li>".format(text=text)
-
         else:
             if in_ul:
                 html += "</ul>"
                 in_ul = False
-            html += "<p>{text}</p>".format(text=line)
+            html += "<p style='margin:4px 0;'>{text}</p>".format(text=line.strip())
 
     if in_ul:
         html += "</ul>"
+
+    # Append visual tables for standings and scores
+    html += build_standings_table(league)
+    html += build_matchups_table(league)
 
     html += "</body></html>"
 
     send_email(html, recipients, mode)
 
     print(
-        "TEST NEWSLETTER: sent to {n} recipient(s) ({mode} mode)".format(
+        "Newsletter sent to {n} recipient(s) ({mode} mode)".format(
             n=len(recipients), mode=mode
         )
     )
