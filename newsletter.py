@@ -458,6 +458,13 @@ def main():
     summary = build_summary(league, mode)
     newsletter_text = generate_newsletter(summary, mode)
 
+    # Base HTML wrapper  <-- this is the missing piece
+    html = (
+        "<html><body style='font-family:Arial,sans-serif;max-width:650px;"
+        "margin:0 auto;padding:20px;line-height:1.5;font-size:15px;color:#222;'>"
+    )
+
+
     # Turn plain text sections into HTML paragraphs and lists
     in_ul = False
     for line in newsletter_text.splitlines():
