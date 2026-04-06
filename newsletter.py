@@ -185,70 +185,84 @@ def build_summary(league, mode):
 
 
 def build_prompt(summary_text, mode):
-    """Build more entertaining, story‑driven newsletter prompt."""
+    """Build Axios-style, concise fantasy newsletter prompt."""
+
     base_rules = [
-        "Trash talk: {ttl}/10 - keep it PG but spicy.".format(ttl=TRASH_TALK_LEVEL),
-        "No swearing. Funny, confident, and a bit cheeky, but never mean.",
-        "Call out {shane} as defending champ.".format(shane=SHANE_TEAM_NAME),
-        "Roast {jim} extra hard (league manager).".format(jim=JIM_TEAM_NAME),
-        "Write like a lively sports column meets newsletter, not a dry recap.",
-        "Paragraphs can be 2–4 sentences; you’re allowed to lean into narrative.",
-        "Weave in storylines, rivalries, and personality for each team spotlight.",
-        "Still include: 1 big thing, winners/losers, team spotlights, standings snapshot, what’s next."
+        "Use Axios-style Smart Brevity.",
+        "Keep sections crisp and scannable.",
+        "Use bold lead-ins (like **Why it matters:**) and short bullets.",
+        "Keep total length around 400–700 words.",
+        "Tone: fun, witty, lightly trash-talky (about {lvl}/10), but PG and friendly.".format(
+            lvl=TRASH_TALK_LEVEL
+        ),
+        "No swearing.",
+        "Focus on the league as a whole, not just the commissioner.",
+        "You may occasionally poke fun at the commissioner, but do NOT make him the main character.",
     ]
 
     mode_rules = {
         "draft": [
-            "Post‑draft kickoff. Celebrate the fresh start.",
-            "Rank draft winners/losers and call out the reaches.",
-            "Highlight the defending champ’s roster and the manager’s squad’s flaws.",
-            "Set the tone for the season: hype, paranoia, and hope."
+            "This is a post-draft kickoff issue.",
+            "Highlight draft steals, reaches, and overall vibes.",
+            "Set expectations for the defending champ and a few key contenders.",
         ],
         "playoff": [
-            "Playoff stakes are ramped up. This is the real season.",
-            "Who’s got life? Who’s already in the consolation conversation?",
-            "Emphasize the pressure, the momentum, and the must‑win matchups.",
-            "Make it feel like the last stretch of a playoff race."
+            "This is a playoff week.",
+            "Lean into stakes, drama, and upsets.",
+            "Highlight who is alive, who is out, and who is clinging to hope.",
         ],
         "finale": [
-            "Championship decided. Wrap up the season like a season‑ending recap.",
-            "Award mini ‘titles’: biggest surprise, biggest bust, best waiver‑wire catch.",
-            "Give a victory lap to the champ and a sympathetic roast to the rest.",
-            "Add a 1‑2 paragraph closing reflection on the year."
+            "This is the season finale and wrap-up.",
+            "Crown the champion, give a quick victory lap, and nod to heartbreaks.",
+            "Include a very short reflection on the season overall.",
         ],
         "weekly": [
-            "Regular week recap and look‑ahead, but with extra flavor.",
-            "Focus on storylines, rivalries, and juicy moments, not just numbers.",
-            "Feel free to personify teams, mock bad decisions, and hype good ones.",
-            "End with a punchy forward‑looking section that sets up the next week."
-        ]
+            "This is a regular-season weekly recap.",
+            "Focus on big swings, surprising scores, and shifts in the playoff picture.",
+        ],
     }
 
     system_msg = (
-        "You're a sharp, entertaining fantasy baseball newsletter writer. "
-        "Write like a mix of sports columnist and modern newsletter: "
-        "witty, opinionated, and a bit brash, but still readable and friendly for the whole league."
+        "You are writing an Axios-style fantasy baseball newsletter for a home ESPN "
+        "head-to-head points league. Use Smart Brevity: short sections, bold lead-ins, "
+        "scannable bullets. Be witty and lightly trash-talky, but keep it PG and fun "
+        "for all ages."
     )
 
     mode_list = mode_rules.get(mode, mode_rules["weekly"])
+
     user_msg = (
-        "League data:\n\n"
+        "Here is compact league data for this week:\n\n"
         "{summary}\n\n"
-        "Voice & rules:\n"
+        "Voice & style rules:\n"
         "{rules}\n\n"
-        "Write a full newsletter in **plain text** (no Markdown, no emojis, no code blocks).\n"
-        "Use these sections as a guide, but feel free to lean into narrative and personality:\n"
-        "- Open with a short, punchy intro that sets the tone.\n"
-        "- 1 Big Thing: the main storyline of the week in 2–4 sentences.\n"
-        "- Winners & Losers: 2–6 short blurbs, 2–4 sentences each, with some light trash talk.\n"
-        "- Team Spotlights: 2–4 sentences per team, focusing on story, personality, and a hint of strategy.\n"
-        "- Standings Snapshot: 1–2 paragraphs showing how the league shape changed.\n"
-        "- What’s Next: 2–4 sentences teasing next week, upcoming matchups, or waiver‑wire targets.\n"
-        "- Close with a 1–2 sentence sign‑off that matches the tone.\n"
-        "Keep it under about 700–900 words total. Do not use any Markdown formatting."
+        "Write the newsletter in PLAIN TEXT, but structured like an Axios email. "
+        "Do NOT use code blocks or HTML. Use Markdown-style headings and bold text "
+        "in the output (e.g., '##', '**') so it can be post-processed into HTML.\n\n"
+        "Structure the newsletter roughly like this:\n"
+        "## 1 big thing\n"
+        "**Why it matters:** One or two sentences on the main storyline.\n"
+        "- A couple of sharp bullets with key details.\n\n"
+        "## Winners & losers\n"
+        "Short sections calling out a few teams that crushed it and a few that face-planted. "
+        "1–2 sentences per bullet, max.\n\n"
+        "## Team spotlights\n"
+        "Pick a handful of notable teams (not necessarily all 13). For each:\n"
+        "- Start with **Team Name** on its own line or as a bold lead-in.\n"
+        "- Give 2–3 sentences mixing performance, narrative, and a tiny bit of strategy or advice.\n\n"
+        "## Standings snapshot\n"
+        "Summarize how the standings shifted. You can reference tiers (contenders, middle, basement) "
+        "instead of listing every record.\n\n"
+        "## What’s next\n"
+        "A short look ahead: key matchups, interesting storylines, or waiver-wire angles.\n\n"
+        "Constraints:\n"
+        "- Keep it tight and scannable.\n"
+        "- Do NOT over-focus on the commissioner/league manager. He can be mentioned once in passing at most.\n"
+        "- No profanity; keep it family-friendly.\n"
+        "- No emojis.\n"
     ).format(
         summary=summary_text,
-        rules="\n".join("- {r}".format(r=r) for r in base_rules + mode_list)
+        rules="\n".join("- {r}".format(r=r) for r in base_rules + mode_list),
     )
 
     return system_msg, user_msg
