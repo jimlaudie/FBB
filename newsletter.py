@@ -449,13 +449,14 @@ def get_last_week_league(base_league):
     if last_period == current_period:
         return base_league
 
-    return League(
+        return League(
         league_id=LEAGUE_ID,
         year=SEASON_ID,
         swid=SWID,
         espn_s2=ESPN_S2,
-        scoringPeriodId=last_period,
+        scoringPeriod=last_period,   # <- use scoringPeriod, not scoringPeriodId
     )
+
 
 
 def main():
