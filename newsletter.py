@@ -29,18 +29,21 @@ JIM_TEAM_NAME = CONFIG["style"]["jim_team_name"]
 SCHEDULE = CONFIG["schedule"]
 TEAMS = CONFIG["teams"]
 
+import re
+
 TEAM_NAMES = [t["team_name"] for t in TEAMS]
 
-
 def underline_team_names(text: str) -> str:
-    """Wrap known team names in <u>...</u> inside narrative text."""
+    """Wrap known team names in <u>...</u> (case-insensitive)."""
     result = text
-    # Sort by length so longer names are replaced first (avoid partial overlaps)
     for name in sorted(TEAM_NAMES, key=len, reverse=True):
         if not name:
             continue
-        result = result.replace(name, f"<u>{name}</u>")
+        # Build a case-insensitive regex for the exact phrase
+        pattern = re.compile(re.escape(name), re.IGNORECASE)
+        result = pattern.sub(lambda m: f"<u>{m.group(0)}</u>", result)
     return result
+
 
 # Secrets from GitHub Actions
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
