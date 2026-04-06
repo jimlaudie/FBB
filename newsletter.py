@@ -415,7 +415,7 @@ def build_matchups_table(league):
             hs = getattr(matchup, "home_score", 0.0)
             as_ = getattr(matchup, "away_score", 0.0)
             label = f"{home_name} vs {away_name}"
-            label = underline_team_names(label)
+            # no underline_team_names here; keep table clean
             score = f"{hs:.1f} – {as_:.1f}"
             html += (
                 "<tr>"
@@ -436,6 +436,26 @@ def build_matchups_table(league):
 
     html += "</table>"
     return html
+
+
+def get_last_week_league(base_league):
+    """Return a League object set to the previous scoring period, if possible."""
+    try:
+        current_period = base_league.scoringPeriodId
+    except AttributeError:
+        return base_league  # fallback if attribute not present
+
+    last_period = max(1, current_period - 1)
+    if last_period == current_period:
+        return base_league
+
+    return League(
+        league_id=LEAGUE_ID,
+        year=SEASON_ID,
+        swid=SWID,
+        espn_s2=ESPN_S2,
+        scoringPeriodId=last_period,
+    )
 
 
 def main():
@@ -461,15 +481,16 @@ def main():
     summary = build_summary(league, mode)
     newsletter_text = generate_newsletter(summary, mode)
 
-    # Base HTML wrapper  <-- this is the missing piece
+    # Base HTML wrapper
     html = (
         "<html><body style='font-family:Arial,sans-serif;max-width:650px;"
         "margin:0 auto;padding:20px;line-height:1.5;font-size:15px;color:#222;'>"
     )
 
-
     # Turn plain text sections into HTML paragraphs and lists
     in_ul = False
+    current_section = None
+
     for line in newsletter_text.splitlines():
         line = line.rstrip()
 
@@ -480,53 +501,65 @@ def main():
             html += "<br>"
             continue
 
-        # Simple heuristic: headings (no leading dash, relatively short)
+        heading_candidates = [
+            "1 big thing",
+            "winners & losers",
+            "team spotlights",
+            "standings snapshot",
+            "what’s next",
+            "whats next",
+        ]
+
+        # Headings
         if (
             not line.startswith("- ")
             and len(line.strip()) <= 40
-            and line.strip().lower() in [
-                "1 big thing",
-                "winners & losers",
-                "team spotlights",
-                "standings snapshot",
-                "what’s next",
-                "whats next",
-            ]
+            and line.strip().lower() in heading_candidates
         ):
             if in_ul:
                 html += "</ul>"
                 in_ul = False
+
             heading_text = line.strip().lower()
+            current_section = heading_text
+
             if heading_text in ["whats next", "what’s next"]:
                 display = "What’s next"
             else:
                 display = heading_text.title()
+
             html += "<h2 style='color:#333;margin-top:18px;margin-bottom:6px;'>{text}</h2>".format(
                 text=display
             )
 
+        # Bullets
         elif line.lstrip().startswith("- "):
             if not in_ul:
                 html += "<ul style='padding-left:20px;margin-top:4px;margin-bottom:4px;'>"
                 in_ul = True
             text = line.lstrip()[2:].strip()
-            text = underline_team_names(text)
+            if current_section == "team spotlights":
+                text = underline_team_names(text)
             html += "<li>{text}</li>".format(text=text)
 
+        # Normal paragraphs
         else:
             if in_ul:
                 html += "</ul>"
                 in_ul = False
-            text = underline_team_names(line.strip())
+            text = line.strip()
+            if current_section == "team spotlights":
+                text = underline_team_names(text)
             html += "<p style='margin:4px 0;'>{text}</p>".format(text=text)
 
     if in_ul:
         html += "</ul>"
 
-
-    # Append visual tables for standings and scores
+    # Append visual tables for standings and last week's scores
     html += build_standings_table(league)
-    html += build_matchups_table(league)
+
+    last_week_league = get_last_week_league(league)
+    html += build_matchups_table(last_week_league)
 
     html += "</body></html>"
 
@@ -539,7 +572,3 @@ def main():
     )
     print("First 300 chars of HTML body (for debugging):")
     print(html[:300])
-
-
-if __name__ == "__main__":
-    main()
