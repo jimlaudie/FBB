@@ -29,6 +29,19 @@ JIM_TEAM_NAME = CONFIG["style"]["jim_team_name"]
 SCHEDULE = CONFIG["schedule"]
 TEAMS = CONFIG["teams"]
 
+TEAM_NAMES = [t["team_name"] for t in TEAMS]
+
+
+def underline_team_names(text: str) -> str:
+    """Wrap known team names in <u>...</u> inside narrative text."""
+    result = text
+    # Sort by length so longer names are replaced first (avoid partial overlaps)
+    for name in sorted(TEAM_NAMES, key=len, reverse=True):
+        if not name:
+            continue
+        result = result.replace(name, f"<u>{name}</u>")
+    return result
+
 # Secrets from GitHub Actions
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 ESPN_S2 = os.environ["ESPN_S2"]
@@ -379,8 +392,8 @@ def build_standings_table(league):
 
 
 def build_matchups_table(league):
-    """Build an HTML table of this week's scores (if available)."""
-    html = "<h3 style='margin-top:24px;margin-bottom:8px;'>This week's scores</h3>"
+    """Build an HTML table of last week's scores (if available)."""
+    html = "<h3 style='margin-top:24px;margin-bottom:8px;'>Last week&apos;s scores</h3>"
     html += "<table style='border-collapse:collapse;width:100%;max-width:600px;font-size:14px;'>"
     html += (
         "<tr>"
@@ -399,6 +412,7 @@ def build_matchups_table(league):
             hs = getattr(matchup, "home_score", 0.0)
             as_ = getattr(matchup, "away_score", 0.0)
             label = f"{home_name} vs {away_name}"
+            label = underline_team_names(label)
             score = f"{hs:.1f} – {as_:.1f}"
             html += (
                 "<tr>"
@@ -408,7 +422,6 @@ def build_matchups_table(league):
             )
             has_row = True
     except Exception:
-        # If scoreboard fails (e.g., off week), just skip table body
         pass
 
     if not has_row:
@@ -445,12 +458,6 @@ def main():
     summary = build_summary(league, mode)
     newsletter_text = generate_newsletter(summary, mode)
 
-    # Base HTML wrapper
-    html = (
-        "<html><body style='font-family:Arial,sans-serif;max-width:650px;"
-        "margin:0 auto;padding:20px;line-height:1.5;font-size:15px;color:#222;'>"
-    )
-
     # Turn plain text sections into HTML paragraphs and lists
     in_ul = False
     for line in newsletter_text.splitlines():
@@ -479,23 +486,33 @@ def main():
             if in_ul:
                 html += "</ul>"
                 in_ul = False
+            heading_text = line.strip().lower()
+            if heading_text in ["whats next", "what’s next"]:
+                display = "What’s next"
+            else:
+                display = heading_text.title()
             html += "<h2 style='color:#333;margin-top:18px;margin-bottom:6px;'>{text}</h2>".format(
-                text=line.strip().title()
+                text=display
             )
+
         elif line.lstrip().startswith("- "):
             if not in_ul:
                 html += "<ul style='padding-left:20px;margin-top:4px;margin-bottom:4px;'>"
                 in_ul = True
             text = line.lstrip()[2:].strip()
+            text = underline_team_names(text)
             html += "<li>{text}</li>".format(text=text)
+
         else:
             if in_ul:
                 html += "</ul>"
                 in_ul = False
-            html += "<p style='margin:4px 0;'>{text}</p>".format(text=line.strip())
+            text = underline_team_names(line.strip())
+            html += "<p style='margin:4px 0;'>{text}</p>".format(text=text)
 
     if in_ul:
         html += "</ul>"
+
 
     # Append visual tables for standings and scores
     html += build_standings_table(league)
