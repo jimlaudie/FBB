@@ -2,7 +2,7 @@ name: Fantasy Newsletter
 
 on:
   schedule:
-    - cron: "0 14 * * 1"   # 8:00 AM MDT every Monday
+    - cron: "50 5 * * 1"   # 11:50 PM Sunday Mountain (Mon 05:50 UTC)
     - cron: "30 18 28 3 *" # 6:30 PM UTC on Mar 28, 2026 (one‑time draft night)
   workflow_dispatch:
     inputs:
