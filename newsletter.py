@@ -572,3 +572,8 @@ def main():
     )
     print("First 300 chars of HTML body (for debugging):")
     print(html[:300])
+
+
+if __name__ == "__main__":
+    main()
+
