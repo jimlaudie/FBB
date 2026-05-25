@@ -321,8 +321,9 @@ def send_email(newsletter_html, recipients, mode):
         "finale": "Championship Glory",
     }
 
-    subject = "{prefix} {title}".format(
-        prefix=SUBJECT_PREFIX, title=subject_map.get(mode, "Weekly Roundup")
+    test_tag = "[TEST] " if TEST_MODE else ""
+    subject = "{test}{prefix} {title}".format(
+        test=test_tag, prefix=SUBJECT_PREFIX, title=subject_map.get(mode, "Weekly Roundup")
     )
 
     msg = MIMEMultipart("alternative")
@@ -406,6 +407,7 @@ def build_matchups_table(league):
     )
 
     has_row = False
+    print("Fetching scoreboard for previous scoring period...")
     try:
         for matchup in league.scoreboard():
             home = matchup.home_team
@@ -414,6 +416,9 @@ def build_matchups_table(league):
             away_name = getattr(away, "team_name", "Away")
             hs = getattr(matchup, "home_score", 0.0)
             as_ = getattr(matchup, "away_score", 0.0)
+            print(
+                f"Matchup found: {home_name} {hs:.1f} vs {away_name} {as_:.1f}"
+            )
             label = f"{home_name} vs {away_name}"
             # no underline_team_names here; keep table clean
             score = f"{hs:.1f} – {as_:.1f}"
@@ -443,18 +448,19 @@ def get_last_week_league(base_league):
     try:
         current_period = base_league.scoringPeriodId
     except AttributeError:
-        return base_league  # fallback if attribute not present
+        return base_league
 
     last_period = max(1, current_period - 1)
+
     if last_period == current_period:
         return base_league
 
-        return League(
+    return League(
         league_id=LEAGUE_ID,
         year=SEASON_ID,
         swid=SWID,
         espn_s2=ESPN_S2,
-        scoringPeriod=last_period,   # <- use scoringPeriod, not scoringPeriodId
+        scoringPeriod=last_period,  # IMPORTANT: scoringPeriod, not scoringPeriodId
     )
 
 
