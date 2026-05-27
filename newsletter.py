@@ -207,6 +207,15 @@ def build_summary(league, mode):
             highest = max(weekly_results, key=lambda x: x["winner_score"])
             closest = min(weekly_results, key=lambda x: x["margin"])
             blowout = max(weekly_results, key=lambda x: x["margin"])
+            first_win_teams = []
+
+            for result in weekly_results:
+                winner = result["winner"]
+
+                rec = team_records.get(winner)
+
+                if rec and rec["wins"] == 1:
+                    first_win_teams.append(winner)
 
             lines.append("")
             lines.append("Weekly superlatives:")
@@ -221,10 +230,15 @@ def build_summary(league, mode):
                 f"- Biggest blowout: {blowout['winner']} crushed "
                 f"{blowout['loser']} by {blowout['margin']:.1f}"
             )
+            for team in first_win_teams:
+                lines.append(
+                    f"- Milestone: {team} earned their first win of the season."
+                )
 
         # Standings
         lines.append("")
         lines.append("Standings:")
+    team_records = {}
     teams_list = []
     for team in league.teams:
         tid = getattr(team, "team_id", None)
@@ -245,6 +259,11 @@ def build_summary(league, mode):
             ties = rec.get("ties", 0)
 
         teams_list.append((tid or 0, name, wins, losses, ties))
+        team_records[name] = {
+            "wins": wins,
+            "losses": losses,
+            "ties": ties,
+        }
 
     for tid, name, w, l, t in sorted(teams_list, key=lambda x: x[2], reverse=True):
         lines.append(
@@ -272,6 +291,7 @@ def build_prompt(summary_text, mode):
         "Use simple plain text headings instead (for example: '1 big thing', 'Winners & losers', 'Team spotlights').",
         "Use blank lines to separate sections and bullets.",
         "Use the provided weekly superlatives and matchup data heavily.",
+        "Never say a team is still looking for its first win if they already have one.",
     ]
 
     mode_rules = {
