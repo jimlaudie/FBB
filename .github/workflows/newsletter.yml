@@ -33,5 +33,6 @@ jobs:
           ESPN_S2: ${{ secrets.ESPN_S2 }}
           SWID: ${{ secrets.SWID }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          TEST_DATE: ${{ github.event.inputs.test_date }}
         run: |
           python newsletter.py
