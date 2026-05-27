@@ -201,7 +201,7 @@ def build_summary(league, mode):
         has_matchups = True
 
     if not has_matchups:
-    lines.append("- No matchups this period")
+        lines.append("- No matchups this period")
 
         if weekly_results:
             highest = max(weekly_results, key=lambda x: x["winner_score"])
