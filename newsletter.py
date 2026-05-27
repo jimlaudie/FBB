@@ -291,6 +291,9 @@ def build_prompt(summary_text, mode):
         "Use simple plain text headings instead (for example: '1 big thing', 'Winners & losers', 'Team spotlights').",
         "Use blank lines to separate sections and bullets.",
         "Use the provided weekly superlatives and matchup data heavily.",
+        "Always highlight emotionally important moments like a team's first win, huge upsets, close heartbreak losses, or major streaks.",
+        "If a team earned its first win of the season, mention it prominently and positively.",
+        "If a team earned its first loss of the season, mention it prominently and negatively.",
         "Never say a team is still looking for its first win if they already have one.",
     ]
 
@@ -338,7 +341,8 @@ def build_prompt(summary_text, mode):
         "Why it matters: 1–2 sentences on the main storyline.\n"
         "- A couple of sharp bullets with key details.\n\n"
         "Weekly superlatives\n"
-        "Call out the week's highest score, closest matchup, biggest blowout, surprise performances, first wins, or other notable weekly moments.\n\n"
+        "Call out the week's highest score, closest matchup, biggest blowout, surprise performances, first wins, or other notable weekly moments.\n"
+        "If a team got its first win of the season, make that one of the featured moments.\n\n"
         "Winners & losers\n"
         "Short sections calling out a few teams that crushed it and a few that face-planted. "
         "1–2 sentences per bullet, with fun trash talk.\n\n"
