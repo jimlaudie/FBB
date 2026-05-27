@@ -152,6 +152,7 @@ def build_summary(league, mode):
     lines.append("")
     lines.append("Matchups:")
     has_matchups = False
+    weekly_results = []
     for matchup in schedule:
         if current_period and matchup.get("matchupPeriodId") != current_period:
             continue
@@ -180,14 +181,50 @@ def build_summary(league, mode):
                 ascore=away_score,
             )
         )
+
+        margin = abs(home_score - away_score)
+
+        winner_name = home_name if home_score > away_score else away_name
+        loser_name = away_name if home_score > away_score else home_name
+
+        winner_score = max(home_score, away_score)
+        loser_score = min(home_score, away_score)
+
+        weekly_results.append({
+            "winner": winner_name,
+            "loser": loser_name,
+            "winner_score": winner_score,
+            "loser_score": loser_score,
+            "margin": margin,
+        })
+
         has_matchups = True
 
     if not has_matchups:
-        lines.append("- No matchups this period")
+    lines.append("- No matchups this period")
 
-    # Standings
-    lines.append("")
-    lines.append("Standings:")
+        if weekly_results:
+            highest = max(weekly_results, key=lambda x: x["winner_score"])
+            closest = min(weekly_results, key=lambda x: x["margin"])
+            blowout = max(weekly_results, key=lambda x: x["margin"])
+
+            lines.append("")
+            lines.append("Weekly superlatives:")
+            lines.append(
+                f"- Highest score: {highest['winner']} ({highest['winner_score']:.1f})"
+            )
+            lines.append(
+                f"- Closest matchup: {closest['winner']} beat "
+                f"{closest['loser']} by {closest['margin']:.1f}"
+            )
+            lines.append(
+                f"- Biggest blowout: {blowout['winner']} crushed "
+                f"{blowout['loser']} by {blowout['margin']:.1f}"
+            )
+
+        # Standings
+        lines.append("")
+        lines.append("Standings:")
     teams_list = []
     for team in league.teams:
         tid = getattr(team, "team_id", None)
