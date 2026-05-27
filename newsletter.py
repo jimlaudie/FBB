@@ -396,7 +396,7 @@ def build_standings_table(league):
 
 
 def build_matchups_table(league):
-    """Build an HTML table of last week's scores (if available)."""
+    """Build an HTML table of last week's scores."""
     html = "<h3 style='margin-top:24px;margin-bottom:8px;'>Last week&apos;s scores</h3>"
     html += "<table style='border-collapse:collapse;width:100%;max-width:600px;font-size:14px;'>"
     html += (
@@ -407,30 +407,42 @@ def build_matchups_table(league):
     )
 
     has_row = False
-    print("Fetching scoreboard for previous scoring period...")
+
     try:
-        for matchup in league.scoreboard():
+        current_period = league.scoringPeriodId
+        last_period = max(1, current_period - 1)
+
+        print(f"Fetching box scores for week {last_period}")
+
+        for matchup in league.box_scores(matchup_period=last_period):
+
             home = matchup.home_team
             away = matchup.away_team
+
             home_name = getattr(home, "team_name", "Home")
             away_name = getattr(away, "team_name", "Away")
+
             hs = getattr(matchup, "home_score", 0.0)
             as_ = getattr(matchup, "away_score", 0.0)
+
             print(
                 f"Matchup found: {home_name} {hs:.1f} vs {away_name} {as_:.1f}"
             )
+
             label = f"{home_name} vs {away_name}"
-            # no underline_team_names here; keep table clean
             score = f"{hs:.1f} – {as_:.1f}"
+
             html += (
                 "<tr>"
                 f"<td style='border-bottom:1px solid #eee;padding:4px;'>{label}</td>"
                 f"<td style='border-bottom:1px solid #eee;padding:4px;'>{score}</td>"
                 "</tr>"
             )
+
             has_row = True
-    except Exception:
-        pass
+
+    except Exception as e:
+        print(f"Error fetching previous week scores: {e}")
 
     if not has_row:
         html += (
@@ -440,29 +452,8 @@ def build_matchups_table(league):
         )
 
     html += "</table>"
+
     return html
-
-
-def get_last_week_league(base_league):
-    """Return a League object set to the previous scoring period, if possible."""
-    try:
-        current_period = base_league.scoringPeriodId
-    except AttributeError:
-        return base_league
-
-    last_period = max(1, current_period - 1)
-
-    if last_period == current_period:
-        return base_league
-
-    return League(
-        league_id=LEAGUE_ID,
-        year=SEASON_ID,
-        swid=SWID,
-        espn_s2=ESPN_S2,
-        scoringPeriod=last_period,  # IMPORTANT: scoringPeriod, not scoringPeriodId
-    )
-
 
 
 def main():
@@ -565,8 +556,7 @@ def main():
     # Append visual tables for standings and last week's scores
     html += build_standings_table(league)
 
-    last_week_league = get_last_week_league(league)
-    html += build_matchups_table(last_week_league)
+    html += build_matchups_table(league)
 
     html += "</body></html>"
 
