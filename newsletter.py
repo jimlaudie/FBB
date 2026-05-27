@@ -144,17 +144,17 @@ def build_summary(league, mode):
         lines.append("- Championship + season wrap.")
 
     # Current matchups
-    matchup_periods = [
-        m.get("matchupPeriodId") for m in schedule if "matchupPeriodId" in m
-    ]
-    current_period = max(matchup_periods) if matchup_periods else None
+    current_period = league.currentMatchupPeriod
+    target_period = max(1, current_period - 1)
+
+    print(f"Summary using matchup period: {target_period}")
 
     lines.append("")
     lines.append("Matchups:")
     has_matchups = False
     weekly_results = []
     for matchup in schedule:
-        if current_period and matchup.get("matchupPeriodId") != current_period:
+        if matchup.get("matchupPeriodId") != target_period:
             continue
         home = matchup.get("home")
         away = matchup.get("away")
