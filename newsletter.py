@@ -63,6 +63,15 @@ def today_mdt():
     """Get today's date (MDT)."""
     return date.today()
 
+def effective_today():
+    """Allow GitHub Actions manual override date."""
+    override = os.environ.get("TEST_DATE")
+
+    if override:
+        print(f"Using TEST_DATE override: {override}")
+        return parse_ymd(override)
+
+    return today_mdt()
 
 def newsletter_mode_for_today(today):
     """Determine if today is a scheduled newsletter day and what type."""
@@ -458,7 +467,7 @@ def build_matchups_table(league):
 
 def main():
     """Main execution."""
-    today = today_mdt()
+    today = effective_today()
 
     mode = newsletter_mode_for_today(today)
     if mode is None:
