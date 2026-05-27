@@ -271,6 +271,7 @@ def build_prompt(summary_text, mode):
         "Do NOT use any Markdown syntax: no asterisks for bold or italics, no '##' headings, no tables, no code blocks.",
         "Use simple plain text headings instead (for example: '1 big thing', 'Winners & losers', 'Team spotlights').",
         "Use blank lines to separate sections and bullets.",
+        "Use the provided weekly superlatives and matchup data heavily.",
     ]
 
     mode_rules = {
@@ -312,10 +313,12 @@ def build_prompt(summary_text, mode):
         "{rules}\n\n"
         "Write the newsletter in PLAIN TEXT ONLY (no Markdown, no asterisks, no '##', no tables, no emojis).\n"
         "Use blank lines to separate sections.\n\n"
-        "Use this structure (you can tweak titles slightly but keep the spirit):\n"
+            "Use this structure (you can tweak titles slightly but keep the spirit):\n"
         "1 big thing\n"
         "Why it matters: 1–2 sentences on the main storyline.\n"
         "- A couple of sharp bullets with key details.\n\n"
+        "Weekly superlatives\n"
+        "Call out the week's highest score, closest matchup, biggest blowout, surprise performances, first wins, or other notable weekly moments.\n\n"
         "Winners & losers\n"
         "Short sections calling out a few teams that crushed it and a few that face-planted. "
         "1–2 sentences per bullet, with fun trash talk.\n\n"
@@ -550,6 +553,7 @@ def main():
 
         heading_candidates = [
             "1 big thing",
+            "weekly superlatives",
             "winners & losers",
             "team spotlights",
             "standings snapshot",
