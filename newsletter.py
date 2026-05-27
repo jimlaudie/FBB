@@ -418,13 +418,16 @@ def build_matchups_table(league):
     has_row = False
 
     try:
-        current_period = league.scoringPeriodId
+        current_period = league.currentMatchupPeriod
         last_period = max(1, current_period - 1)
 
+        print(f"Current matchup period: {current_period}")
         print(f"Fetching box scores for week {last_period}")
 
         for matchup in league.box_scores(matchup_period=last_period):
 
+            print(f"Retrieved matchup period: {last_period}")
+            
             home = matchup.home_team
             away = matchup.away_team
 
