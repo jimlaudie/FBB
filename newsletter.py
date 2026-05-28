@@ -561,13 +561,27 @@ def build_matchups_table(league):
 
             print("ROSTER COUNT:", len(roster))
 
-            for player in roster[:5]:
+            for player in roster[:1]:
 
                 print("PLAYER:", getattr(player, "name", "UNKNOWN"))
 
-                print("SLOT:", getattr(player, "slot_position", "NO_SLOT"))
+                print("ATTRIBUTES:")
 
-                print("POINTS:", getattr(player, "total_points", "NO_POINTS"))
+                for attr in dir(player):
+
+                    if attr.startswith("_"):
+                        continue
+
+                    try:
+                        value = getattr(player, attr)
+
+                        if callable(value):
+                            continue
+
+                        print(attr, "=", value)
+
+                    except Exception:
+                        pass
 
                 print("----")
 
