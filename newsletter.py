@@ -206,6 +206,7 @@ def build_summary(league, mode):
     # Current matchups
     current_period = league.currentMatchupPeriod
     target_period = max(1, current_period - 1)
+    box_scores = league.box_scores(matchup_period=target_period)
 
     print(f"Summary using matchup period: {target_period}")
 
@@ -254,39 +255,33 @@ def build_summary(league, mode):
         elif margin > 80:
             lines.append("  - This was a major blowout.")
 
-        # Add standout player notes from last week's scoreboard
         try:
 
-            scoreboard = last_week_league.scoreboard()
+            for box in box_scores:
 
-            for sb_matchup in scoreboard:
-    
-                sb_home = sb_matchup.home_team
-                sb_away = sb_matchup.away_team
+                box_home = box.home_team
+                box_away = box.away_team
 
-                sb_home_name = getattr(sb_home, "team_name", "")
-                sb_away_name = getattr(sb_away, "team_name", "")
+                box_home_name = getattr(box_home, "team_name", "")
+                box_away_name = getattr(box_away, "team_name", "")
 
                 if (
-                    sb_home_name == home_name
-                    and sb_away_name == away_name
+                    box_home_name == home_name
+                    and box_away_name == away_name
                 ):
 
                     lines.append("  Key performances:")
 
-                    home_story = extract_team_storylines(sb_home)
-                    away_story = extract_team_storylines(sb_away)
+                    home_story = extract_team_storylines(box_home)
+                    away_story = extract_team_storylines(box_away)
 
                     if home_story["top_hitter"]:
 
                         hitter = home_story["top_hitter"]
 
                         lines.append(
-                            "  - {team} top hitter: {player} ({pts} pts)".format(
-                                team=home_name,
-                                player=hitter["name"],
-                                pts=hitter["points"],
-                            )
+                            f"  - {home_name} top hitter: "
+                            f"{hitter['name']} ({hitter['points']} pts)"
                         )
 
                     if home_story["top_pitcher"]:
@@ -294,11 +289,8 @@ def build_summary(league, mode):
                         pitcher = home_story["top_pitcher"]
 
                         lines.append(
-                            "  - {team} top pitcher: {player} ({pts} pts)".format(
-                                team=home_name,
-                                player=pitcher["name"],
-                                pts=pitcher["points"],
-                            )
+                            f"  - {home_name} top pitcher: "
+                            f"{pitcher['name']} ({pitcher['points']} pts)"
                         )
 
                     if away_story["top_hitter"]:
@@ -306,11 +298,8 @@ def build_summary(league, mode):
                         hitter = away_story["top_hitter"]
 
                         lines.append(
-                            "  - {team} top hitter: {player} ({pts} pts)".format(
-                                team=away_name,
-                                player=hitter["name"],
-                                pts=hitter["points"],
-                            )
+                            f"  - {away_name} top hitter: "
+                            f"{hitter['name']} ({hitter['points']} pts)"
                         )
 
                     if away_story["top_pitcher"]:
@@ -318,17 +307,15 @@ def build_summary(league, mode):
                         pitcher = away_story["top_pitcher"]
 
                         lines.append(
-                            "  - {team} top pitcher: {player} ({pts} pts)".format(
-                                team=away_name,
-                                player=pitcher["name"],
-                                pts=pitcher["points"],
-                            )
+                            f"  - {away_name} top pitcher: "
+                            f"{pitcher['name']} ({pitcher['points']} pts)"
                         )
 
         except Exception as e:
 
-            print("Could not build matchup storylines:", e)
+            print("Could not build player storylines:", e)
 
+        
         margin = abs(home_score - away_score)
 
         winner_name = home_name if home_score > away_score else away_name
@@ -350,65 +337,65 @@ def build_summary(league, mode):
     if not has_matchups:
         lines.append("- No matchups this period")
 
-        if weekly_results:
-            highest = max(weekly_results, key=lambda x: x["winner_score"])
-            closest = min(weekly_results, key=lambda x: x["margin"])
-            blowout = max(weekly_results, key=lambda x: x["margin"])
-            first_win_teams = []
+    if weekly_results:
+        highest = max(weekly_results, key=lambda x: x["winner_score"])
+        closest = min(weekly_results, key=lambda x: x["margin"])
+        blowout = max(weekly_results, key=lambda x: x["margin"])
+        first_win_teams = []
 
-            for result in weekly_results:
-                winner = result["winner"]
+        for result in weekly_results:
+            winner = result["winner"]
 
-                rec = team_records.get(winner)
+            rec = team_records.get(winner)
 
-                if rec and rec["wins"] == 1:
-                    first_win_teams.append(winner)
+            if rec and rec["wins"] == 1:
+                first_win_teams.append(winner)
 
-            lines.append("")
-            lines.append("Weekly superlatives:")
+        lines.append("")
+        lines.append("Weekly superlatives:")
+        lines.append(
+            f"- Highest score: {highest['winner']} ({highest['winner_score']:.1f})"
+        )
+        lines.append(
+            f"- Closest matchup: {closest['winner']} beat "
+            f"{closest['loser']} by {closest['margin']:.1f}"
+        )
+        lines.append(
+            f"- Biggest blowout: {blowout['winner']} crushed "
+            f"{blowout['loser']} by {blowout['margin']:.1f}"
+        )
+        for team in first_win_teams:
             lines.append(
-                f"- Highest score: {highest['winner']} ({highest['winner_score']:.1f})"
+                f"- Milestone: {team} earned their first win of the season."
             )
+
+        winning_streaks = []
+        losing_streaks = []
+
+        for name, rec in team_records.items():
+
+            streak_type = rec.get("streak_type", "")
+            streak_length = rec.get("streak_length", 0)
+
+            if streak_type == "W" and streak_length >= 2:
+                winning_streaks.append((name, streak_length))
+
+            elif streak_type == "L" and streak_length >= 2:
+                losing_streaks.append((name, streak_length))
+
+        if winning_streaks:
+            hottest = max(winning_streaks, key=lambda x: x[1])
+
             lines.append(
-                f"- Closest matchup: {closest['winner']} beat "
-                f"{closest['loser']} by {closest['margin']:.1f}"
+                f"- Hottest team: {hottest[0]} riding a W{hottest[1]} streak."
             )
+
+        if losing_streaks:
+            coldest = max(losing_streaks, key=lambda x: x[1])
+
             lines.append(
-                f"- Biggest blowout: {blowout['winner']} crushed "
-                f"{blowout['loser']} by {blowout['margin']:.1f}"
+                f"- Cold streak: {coldest[0]} stuck on an L{coldest[1]} skid."
             )
-            for team in first_win_teams:
-                lines.append(
-                    f"- Milestone: {team} earned their first win of the season."
-                )
-
-            winning_streaks = []
-            losing_streaks = []
-
-            for name, rec in team_records.items():
-
-                streak_type = rec.get("streak_type", "")
-                streak_length = rec.get("streak_length", 0)
-
-                if streak_type == "W" and streak_length >= 2:
-                    winning_streaks.append((name, streak_length))
-
-                elif streak_type == "L" and streak_length >= 2:
-                    losing_streaks.append((name, streak_length))
-
-            if winning_streaks:
-                hottest = max(winning_streaks, key=lambda x: x[1])
-
-                lines.append(
-                    f"- Hottest team: {hottest[0]} riding a W{hottest[1]} streak."
-                )
-
-            if losing_streaks:
-                coldest = max(losing_streaks, key=lambda x: x[1])
-
-                lines.append(
-                    f"- Cold streak: {coldest[0]} stuck on an L{coldest[1]} skid."
-                )
 
         # Standings
         lines.append("")
