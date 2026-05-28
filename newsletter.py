@@ -151,6 +151,7 @@ def calculate_team_split(team):
             if isinstance(stat_data, dict):
                 weekly_points = stat_data.get("points", 0.0)
 
+        print(player.name, lineup_slot, getattr(player, "position", ""))
         if lineup_slot in hitting_slots:
             hitting_points += weekly_points
 
