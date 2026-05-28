@@ -140,14 +140,16 @@ def calculate_team_split(team):
 
         weekly_points = 0.0
 
-        for stat_id, stat_data in stats.items():
+        valid_periods = [k for k in stats.keys() if k != 0]
 
-            if stat_id == 0:
-                continue
+        if valid_periods:
+
+            latest_period = max(valid_periods)
+
+            stat_data = stats.get(latest_period, {})
 
             if isinstance(stat_data, dict):
                 weekly_points = stat_data.get("points", 0.0)
-                break
 
         if lineup_slot in hitting_slots:
             hitting_points += weekly_points
