@@ -235,6 +235,34 @@ def build_summary(league, mode):
                     f"- Milestone: {team} earned their first win of the season."
                 )
 
+            winning_streaks = []
+            losing_streaks = []
+
+            for name, rec in team_records.items():
+
+                streak_type = rec.get("streak_type", "")
+                streak_length = rec.get("streak_length", 0)
+
+                if streak_type == "W" and streak_length >= 2:
+                    winning_streaks.append((name, streak_length))
+
+                elif streak_type == "L" and streak_length >= 2:
+                    losing_streaks.append((name, streak_length))
+
+            if winning_streaks:
+                hottest = max(winning_streaks, key=lambda x: x[1])
+
+                lines.append(
+                    f"- Hottest team: {hottest[0]} riding a W{hottest[1]} streak."
+                )
+
+            if losing_streaks:
+                coldest = max(losing_streaks, key=lambda x: x[1])
+
+                lines.append(
+                    f"- Cold streak: {coldest[0]} stuck on an L{coldest[1]} skid."
+                )
+
         # Standings
         lines.append("")
         lines.append("Standings:")
@@ -259,10 +287,15 @@ def build_summary(league, mode):
             ties = rec.get("ties", 0)
 
         teams_list.append((tid or 0, name, wins, losses, ties))
+        streak_type = getattr(team, "streak_type", "")
+        streak_length = getattr(team, "streak_length", 0)
+
         team_records[name] = {
             "wins": wins,
             "losses": losses,
             "ties": ties,
+            "streak_type": streak_type,
+            "streak_length": streak_length,
         }
 
     for tid, name, w, l, t in sorted(teams_list, key=lambda x: x[2], reverse=True):
@@ -295,6 +328,10 @@ def build_prompt(summary_text, mode):
         "If a team earned its first win of the season, mention it prominently and positively.",
         "If a team earned its first loss of the season, mention it prominently and negatively.",
         "Never say a team is still looking for its first win if they already have one.",
+        "Prioritize sharp observations over long explanations.",
+        "Avoid repeating standings information multiple times.",
+        "Do not give generic fantasy advice unless tied to a specific trend or matchup.",
+        "Every section should include concrete matchup or scoring details.",
     ]
 
     mode_rules = {
@@ -343,16 +380,10 @@ def build_prompt(summary_text, mode):
         "Weekly superlatives\n"
         "Call out the week's highest score, closest matchup, biggest blowout, surprise performances, first wins, or other notable weekly moments.\n"
         "If a team got its first win of the season, make that one of the featured moments.\n\n"
-        "Winners & losers\n"
-        "Short sections calling out a few teams that crushed it and a few that face-planted. "
-        "1–2 sentences per bullet, with fun trash talk.\n\n"
         "Team spotlights\n"
-        "Pick a handful of notable teams (not necessarily all 13). For each:\n"
+        "Pick ONLY 2 teams that genuinely drove this week's storylines.\n"
         "- Start with the team name on its own line.\n"
-        "- Give 2–3 sentences mixing performance, narrative, and a tiny bit of strategy or advice.\n\n"
-        "Standings snapshot\n"
-        "Summarize how the standings shifted. You can reference tiers (contenders, middle, basement) "
-        "instead of listing every record.\n\n"
+        "- Give 2–4 concise sentences with specific observations and league context.\n\n"
         "What’s next\n"
         "A short look ahead: key matchups, interesting storylines, or waiver-wire angles.\n\n"
         "Constraints:\n"
@@ -429,7 +460,7 @@ def send_email(newsletter_html, recipients, mode):
 
 def build_standings_table(league):
     """Build an HTML standings table."""
-    rows = []
+    divisions = {}
     for team in league.teams:
         name = getattr(
             team, "team_name", "Team {tid}".format(tid=getattr(team, "team_id", 0))
@@ -443,28 +474,53 @@ def build_standings_table(league):
             wins = rec.get("wins", 0)
             losses = rec.get("losses", 0)
             ties = rec.get("ties", 0)
-        rows.append((name, wins or 0, losses or 0, ties or 0))
+        division_id = getattr(team, "division_id", 0)
+
+        if division_id not in divisions:
+            divisions[division_id] = []
+
+        divisions[division_id].append(
+            (name, wins or 0, losses or 0, ties or 0)
+        )
 
     # Sort by wins desc, then losses asc, then name
-    rows.sort(key=lambda r: (-r[1], r[2], r[0]))
+    html = "<h3 style='margin-top:24px;margin-bottom:8px;'>Division Standings</h3>"
 
-    html = "<h3 style='margin-top:24px;margin-bottom:8px;'>Standings</h3>"
-    html += "<table style='border-collapse:collapse;width:100%;max-width:600px;font-size:14px;'>"
-    html += (
-        "<tr>"
-        "<th style='border-bottom:1px solid #ccc;text-align:left;padding:4px;'>Team</th>"
-        "<th style='border-bottom:1px solid #ccc;text-align:left;padding:4px;'>W-L-T</th>"
-        "</tr>"
-    )
-    for name, w, l, t in rows:
-        rec_str = f"{w}-{l}-{t}"
+    for division_id, rows in sorted(divisions.items()):
+
+        rows.sort(key=lambda r: (-r[1], r[2], r[0]))
+
+        html += (
+            f"<h4 style='margin-top:16px;margin-bottom:6px;'>"
+            f"Division {division_id}"
+            f"</h4>"
+        )
+
+        html += (
+            "<table style='border-collapse:collapse;width:100%;"
+            "max-width:600px;font-size:14px;margin-bottom:12px;'>"
+        )
+
         html += (
             "<tr>"
-            f"<td style='border-bottom:1px solid #eee;padding:4px;'>{name}</td>"
-            f"<td style='border-bottom:1px solid #eee;padding:4px;'>{rec_str}</td>"
+            "<th style='border-bottom:1px solid #ccc;text-align:left;padding:4px;'>Team</th>"
+            "<th style='border-bottom:1px solid #ccc;text-align:left;padding:4px;'>W-L-T</th>"
             "</tr>"
         )
-    html += "</table>"
+
+        for name, w, l, t in rows:
+
+            rec_str = f"{w}-{l}-{t}"
+
+            html += (
+                "<tr>"
+                f"<td style='border-bottom:1px solid #eee;padding:4px;'>{name}</td>"
+                f"<td style='border-bottom:1px solid #eee;padding:4px;'>{rec_str}</td>"
+                "</tr>"
+            )
+
+        html += "</table>"
+
     return html
 
 
@@ -494,6 +550,26 @@ def build_matchups_table(league):
             
             home = matchup.home_team
             away = matchup.away_team
+
+            print("\nDEBUG ROSTER INSPECTION")
+
+            sample_team = home
+
+            print("TEAM:", sample_team.team_name)
+
+            roster = getattr(sample_team, "roster", [])
+
+            print("ROSTER COUNT:", len(roster))
+
+            for player in roster[:5]:
+
+                print("PLAYER:", getattr(player, "name", "UNKNOWN"))
+
+                print("SLOT:", getattr(player, "slot_position", "NO_SLOT"))
+
+                print("POINTS:", getattr(player, "total_points", "NO_POINTS"))
+
+                print("----")
 
             home_name = getattr(home, "team_name", "Home")
             away_name = getattr(away, "team_name", "Away")
@@ -578,11 +654,8 @@ def main():
         heading_candidates = [
             "1 big thing",
             "weekly superlatives",
-            "winners & losers",
             "team spotlights",
-            "standings snapshot",
             "what’s next",
-            "whats next",
         ]
 
         # Headings
