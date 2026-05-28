@@ -159,7 +159,7 @@ def calculate_team_split(team):
 
             # Only use periods that actually contain scoring data
             if breakdown:
-                weekly_points = stat_data.get("points", 0.0)
+                weekly_points += stat_data.get("points", 0.0)
 
         position = getattr(player, "position", "")
 
