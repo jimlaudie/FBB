@@ -113,6 +113,52 @@ def build_team_lookups(league):
 
     return espn_lookup, config_lookup
 
+def calculate_team_split(team):
+    """
+    Estimate weekly hitting vs pitching fantasy points.
+    Returns dict with hitting_points and pitching_points.
+    """
+
+    hitting_slots = {
+        "C", "1B", "2B", "3B", "SS",
+        "OF", "UTIL"
+    }
+
+    pitching_slots = {
+        "SP", "RP", "P"
+    }
+
+    hitting_points = 0.0
+    pitching_points = 0.0
+
+    roster = getattr(team, "roster", [])
+
+    for player in roster:
+
+        lineup_slot = getattr(player, "lineupSlot", "")
+        stats = getattr(player, "stats", {})
+
+        weekly_points = 0.0
+
+        for stat_id, stat_data in stats.items():
+
+            if stat_id == 0:
+                continue
+
+            if isinstance(stat_data, dict):
+                weekly_points = stat_data.get("points", 0.0)
+                break
+
+        if lineup_slot in hitting_slots:
+            hitting_points += weekly_points
+
+        elif lineup_slot in pitching_slots:
+            pitching_points += weekly_points
+
+    return {
+        "hitting_points": round(hitting_points, 1),
+        "pitching_points": round(pitching_points, 1),
+    }
 
 def build_summary(league, mode):
     """Build compact data summary for LLM."""
@@ -550,6 +596,12 @@ def build_matchups_table(league):
             
             home = matchup.home_team
             away = matchup.away_team
+
+            home_split = calculate_team_split(home)
+            away_split = calculate_team_split(away)
+
+            print(home.team_name, home_split)
+            print(away.team_name, away_split)
 
             print("\nDEBUG ROSTER INSPECTION")
 
