@@ -97,26 +97,6 @@ def get_league():
         espn_s2=ESPN_S2,
     )
 
-def get_last_week_league(base_league):
-    """Return League object for the previous scoring period."""
-
-    current_period = getattr(base_league, "currentMatchupPeriod", None)
-
-    if current_period is None:
-        current_period = getattr(base_league, "scoringPeriodId", 1)
-
-    target_period = max(1, current_period - 1)
-
-    print(f"Using previous scoring period: {target_period}")
-
-    return League(
-        league_id=LEAGUE_ID,
-        year=SEASON_ID,
-        swid=SWID,
-        espn_s2=ESPN_S2,
-        matchup_period=target_period,
-    )
-
 
 def build_team_lookups(league):
     """Build ESPN and config team lookups."""
@@ -199,8 +179,7 @@ def build_summary(league, mode):
     espn_lookup, config_lookup = build_team_lookups(league)
     data = league._fetch_league()
     schedule = data.get("schedule", [])
-    last_week_league = get_last_week_league(league)
-
+    
     lines = []
 
     # Debug team mapping
