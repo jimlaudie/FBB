@@ -179,6 +179,7 @@ def build_summary(league, mode):
     espn_lookup, config_lookup = build_team_lookups(league)
     data = league._fetch_league()
     schedule = data.get("schedule", [])
+    last_week_league = get_last_week_league(league)
 
     lines = []
 
@@ -233,14 +234,101 @@ def build_summary(league, mode):
             "name", "Team {tid}".format(tid=away_id)
         )
 
+        margin = round(abs(home_score - away_score), 1)
+
+        winner = home_name if home_score > away_score else away_name
+
         lines.append(
-            "- {hname} {hscore} vs {aname} {ascore}".format(
+            "- Matchup: {hname} scored {hscore} points vs {aname} with {ascore} points. Margin: {margin}. Winner: {winner}.".format(
                 hname=home_name,
-                hscore=home_score,
+                hscore=round(home_score, 1),
                 aname=away_name,
-                ascore=away_score,
+                ascore=round(away_score, 1),
+                margin=margin,
+                winner=winner,
             )
         )
+
+        if margin < 15:
+            lines.append("  - This matchup was extremely close.")
+
+        elif margin > 80:
+            lines.append("  - This was a major blowout.")
+
+        # Add standout player notes from last week's scoreboard
+        try:
+
+            scoreboard = last_week_league.scoreboard()
+
+            for sb_matchup in scoreboard:
+    
+                sb_home = sb_matchup.home_team
+                sb_away = sb_matchup.away_team
+
+                sb_home_name = getattr(sb_home, "team_name", "")
+                sb_away_name = getattr(sb_away, "team_name", "")
+
+                if (
+                    sb_home_name == home_name
+                    and sb_away_name == away_name
+                ):
+
+                    lines.append("  Key performances:")
+
+                    home_story = extract_team_storylines(sb_home)
+                    away_story = extract_team_storylines(sb_away)
+
+                    if home_story["top_hitter"]:
+
+                        hitter = home_story["top_hitter"]
+
+                        lines.append(
+                            "  - {team} top hitter: {player} ({pts} pts)".format(
+                                team=home_name,
+                                player=hitter["name"],
+                                pts=hitter["points"],
+                            )
+                        )
+
+                    if home_story["top_pitcher"]:
+
+                        pitcher = home_story["top_pitcher"]
+
+                        lines.append(
+                            "  - {team} top pitcher: {player} ({pts} pts)".format(
+                                team=home_name,
+                                player=pitcher["name"],
+                                pts=pitcher["points"],
+                            )
+                        )
+
+                    if away_story["top_hitter"]:
+
+                        hitter = away_story["top_hitter"]
+
+                        lines.append(
+                            "  - {team} top hitter: {player} ({pts} pts)".format(
+                                team=away_name,
+                                player=hitter["name"],
+                                pts=hitter["points"],
+                            )
+                        )
+
+                    if away_story["top_pitcher"]:
+
+                        pitcher = away_story["top_pitcher"]
+
+                        lines.append(
+                            "  - {team} top pitcher: {player} ({pts} pts)".format(
+                                team=away_name,
+                                player=pitcher["name"],
+                                pts=pitcher["points"],
+                            )
+                        )
+
+        except Exception as e:
+
+            print("Could not build matchup storylines:", e)
 
         margin = abs(home_score - away_score)
 
