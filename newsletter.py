@@ -147,15 +147,18 @@ def calculate_team_split(team):
 
         weekly_points = 0.0
 
-        valid_periods = [k for k in stats.keys() if k != 0]
+        for stat_id, stat_data in stats.items():
 
-        if valid_periods:
+            if stat_id == 0:
+                continue
 
-            latest_period = max(valid_periods)
+            if not isinstance(stat_data, dict):
+                continue
 
-            stat_data = stats.get(latest_period, {})
+            breakdown = stat_data.get("breakdown", {})
 
-            if isinstance(stat_data, dict):
+            # Only use periods that actually contain scoring data
+            if breakdown:
                 weekly_points = stat_data.get("points", 0.0)
 
         position = getattr(player, "position", "")
