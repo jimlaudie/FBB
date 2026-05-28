@@ -128,6 +128,22 @@ def calculate_team_split(team):
 
         lineup_slot = getattr(player, "lineupSlot", "")
         stats = getattr(player, "stats", {})
+        if player.name in ["Aaron Judge", "Cal Raleigh", "Bo Bichette"]:
+            print("\nPLAYER DEBUG:", player.name)
+            print("POSITION:", getattr(player, "position", ""))
+            print("LINEUP:", lineup_slot)
+            print("STAT KEYS:", list(stats.keys()))
+
+            for k, v in stats.items():
+
+                if isinstance(v, dict):
+                    print("KEY:", k)
+
+                    if "points" in v:
+                        print("POINTS:", v.get("points"))
+
+                    if "breakdown" in v:
+                        print("BREAKDOWN KEYS:", list(v.get("breakdown", {}).keys())[:10])
 
         weekly_points = 0.0
 
