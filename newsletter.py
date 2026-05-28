@@ -113,37 +113,26 @@ def build_team_lookups(league):
 
     return espn_lookup, config_lookup
 
-def calculate_team_split(team):
+def extract_team_storylines(team):
     """
-    Estimate weekly hitting vs pitching fantasy points.
-    Returns dict with hitting_points and pitching_points.
+    Pull standout hitters and pitchers from a fantasy team.
+    Returns a compact narrative-friendly summary.
     """
 
-    hitting_points = 0.0
-    pitching_points = 0.0
+    hitters = []
+    pitchers = []
 
     roster = getattr(team, "roster", [])
 
     for player in roster:
 
         lineup_slot = getattr(player, "lineupSlot", "")
+
+        # Ignore bench/IL players
+        if lineup_slot in {"BE", "IL"}:
+            continue
+
         stats = getattr(player, "stats", {})
-        if player.name in ["Aaron Judge", "Cal Raleigh", "Bo Bichette"]:
-            print("\nPLAYER DEBUG:", player.name)
-            print("POSITION:", getattr(player, "position", ""))
-            print("LINEUP:", lineup_slot)
-            print("STAT KEYS:", list(stats.keys()))
-
-            for k, v in stats.items():
-
-                if isinstance(v, dict):
-                    print("KEY:", k)
-
-                    if "points" in v:
-                        print("POINTS:", v.get("points"))
-
-                    if "breakdown" in v:
-                        print("BREAKDOWN KEYS:", list(v.get("breakdown", {}).keys())[:10])
 
         weekly_points = 0.0
 
@@ -157,24 +146,32 @@ def calculate_team_split(team):
 
             breakdown = stat_data.get("breakdown", {})
 
-            # Only use periods that actually contain scoring data
+            # Only use populated scoring periods
             if breakdown:
                 weekly_points += stat_data.get("points", 0.0)
 
         position = getattr(player, "position", "")
 
-        # Ignore bench and IL players
-        if lineup_slot in {"BE", "IL"}:
-            continue
+        player_info = {
+            "name": getattr(player, "name", "Unknown"),
+            "points": round(weekly_points, 1),
+            "position": position,
+        }
 
         if position in {"SP", "RP"}:
-            pitching_points += weekly_points
+            pitchers.append(player_info)
         else:
-            hitting_points += weekly_points
+            hitters.append(player_info)
+
+    hitters.sort(key=lambda x: x["points"], reverse=True)
+    pitchers.sort(key=lambda x: x["points"], reverse=True)
+
+    top_hitter = hitters[0] if hitters else None
+    top_pitcher = pitchers[0] if pitchers else None
 
     return {
-        "hitting_points": round(hitting_points, 1),
-        "pitching_points": round(pitching_points, 1),
+        "top_hitter": top_hitter,
+        "top_pitcher": top_pitcher,
     }
 
 def build_summary(league, mode):
@@ -613,46 +610,6 @@ def build_matchups_table(league):
             
             home = matchup.home_team
             away = matchup.away_team
-
-            home_split = calculate_team_split(home)
-            away_split = calculate_team_split(away)
-
-            print(home.team_name, home_split)
-            print(away.team_name, away_split)
-
-            print("\nDEBUG ROSTER INSPECTION")
-
-            sample_team = home
-
-            print("TEAM:", sample_team.team_name)
-
-            roster = getattr(sample_team, "roster", [])
-
-            print("ROSTER COUNT:", len(roster))
-
-            for player in roster[:1]:
-
-                print("PLAYER:", getattr(player, "name", "UNKNOWN"))
-
-                print("ATTRIBUTES:")
-
-                for attr in dir(player):
-
-                    if attr.startswith("_"):
-                        continue
-
-                    try:
-                        value = getattr(player, attr)
-
-                        if callable(value):
-                            continue
-
-                        print(attr, "=", value)
-
-                    except Exception:
-                        pass
-
-                print("----")
 
             home_name = getattr(home, "team_name", "Home")
             away_name = getattr(away, "team_name", "Away")
