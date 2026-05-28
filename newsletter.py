@@ -119,15 +119,6 @@ def calculate_team_split(team):
     Returns dict with hitting_points and pitching_points.
     """
 
-    hitting_slots = {
-        "C", "1B", "2B", "3B", "SS",
-        "OF", "UTIL"
-    }
-
-    pitching_slots = {
-        "SP", "RP", "P"
-    }
-
     hitting_points = 0.0
     pitching_points = 0.0
 
@@ -151,12 +142,16 @@ def calculate_team_split(team):
             if isinstance(stat_data, dict):
                 weekly_points = stat_data.get("points", 0.0)
 
-        print(player.name, lineup_slot, getattr(player, "position", ""))
-        if lineup_slot in hitting_slots:
-            hitting_points += weekly_points
+        position = getattr(player, "position", "")
 
-        elif lineup_slot in pitching_slots:
+        # Ignore bench and IL players
+        if lineup_slot in {"BE", "IL"}:
+            continue
+
+        if position in {"SP", "RP"}:
             pitching_points += weekly_points
+        else:
+            hitting_points += weekly_points
 
     return {
         "hitting_points": round(hitting_points, 1),
