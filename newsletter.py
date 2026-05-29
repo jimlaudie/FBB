@@ -35,13 +35,29 @@ TEAM_NAMES = [t["team_name"] for t in TEAMS]
 
 def underline_team_names(text: str) -> str:
     """Wrap known team names in <u>...</u> (case-insensitive)."""
-    result = text
+
+    # Normalize curly apostrophes to straight apostrophes
+    normalized_text = text.replace("’", "'")
+
+    result = normalized_text
+
     for name in sorted(TEAM_NAMES, key=len, reverse=True):
+
         if not name:
             continue
-        # Build a case-insensitive regex for the exact phrase
-        pattern = re.compile(re.escape(name), re.IGNORECASE)
-        result = pattern.sub(lambda m: f"<u>{m.group(0)}</u>", result)
+
+        normalized_name = name.replace("’", "'")
+
+        pattern = re.compile(
+            re.escape(normalized_name),
+            re.IGNORECASE
+        )
+
+        result = pattern.sub(
+            lambda m: f"<u>{m.group(0)}</u>",
+            result
+        )
+
     return result
 
 
