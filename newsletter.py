@@ -463,6 +463,7 @@ def build_prompt(summary_text, mode):
         "Spread coverage across the league instead of repeating the same team in every section.",
         "Avoid mentioning the same team in more than 2 major sections unless they had an overwhelmingly historic week.",
         "If one team is featured in the opening section, prioritize different teams in Team Spotlights and Weekly Superlatives.",
+        "Be numerically precise when discussing margins of victory. Do not confuse total score with margin of victory.",
     ]
 
     mode_rules = {
@@ -802,7 +803,13 @@ def main():
                 html += "<ul style='padding-left:20px;margin-top:4px;margin-bottom:4px;'>"
                 in_ul = True
             text = line.lstrip()[2:].strip()
-            if current_section == "team spotlights":
+            if current_section in [
+                "1 big thing",
+                "weekly superlatives",
+                "team spotlights",
+                "what’s next",
+                "whats next",
+            ]:
                 text = underline_team_names(text)
             html += "<li>{text}</li>".format(text=text)
 
@@ -812,7 +819,13 @@ def main():
                 html += "</ul>"
                 in_ul = False
             text = line.strip()
-            if current_section == "team spotlights":
+            if current_section in [
+                "1 big thing",
+                "weekly superlatives",
+                "team spotlights",
+                "what’s next",
+                "whats next",
+            ]:
                 text = underline_team_names(text)
             html += "<p style='margin:4px 0;'>{text}</p>".format(text=text)
 
