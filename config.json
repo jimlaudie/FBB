@@ -6,7 +6,7 @@
   "email": {
     "from_address": "jimlaudie@gmail.com",
     "subject_prefix": "[Fantasy Week in Review]",
-    "test_mode": true,
+    "test_mode": false,
     "test_recipient": "jimlaudie@gmail.com"
   },
   "style": {
