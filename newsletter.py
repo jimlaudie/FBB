@@ -136,19 +136,10 @@ def extract_team_storylines(team):
 
         weekly_points = 0.0
 
-        for stat_id, stat_data in stats.items():
+        last_period_stats = stats.get(64, {})
 
-            if stat_id == 0:
-                continue
-
-            if not isinstance(stat_data, dict):
-                continue
-
-            breakdown = stat_data.get("breakdown", {})
-
-            # Only use populated scoring periods
-            if breakdown:
-                weekly_points += stat_data.get("points", 0.0)
+        if isinstance(last_period_stats, dict):
+            weekly_points = last_period_stats.get("points", 0.0)
 
         position = getattr(player, "position", "")
 
@@ -394,8 +385,9 @@ def build_summary(league, mode):
             f"{closest['loser']} by {closest['margin']:.1f}"
         )
         lines.append(
-            f"- Biggest blowout: {blowout['winner']} crushed "
-            f"{blowout['loser']} by {blowout['margin']:.1f}"
+            f"- Biggest margin of victory: {blowout['winner']} defeated "
+            f"{blowout['loser']} by {blowout['margin']:.1f} points "
+            f"({blowout['winner_score']:.1f} to {blowout['loser_score']:.1f})"
         )
         for team in first_win_teams:
             lines.append(
@@ -468,6 +460,9 @@ def build_prompt(summary_text, mode):
         "Avoid repeating standings information multiple times.",
         "Do not give generic fantasy advice unless tied to a specific trend or matchup.",
         "Every section should include concrete matchup or scoring details.",
+        "Spread coverage across the league instead of repeating the same team in every section.",
+        "Avoid mentioning the same team in more than 2 major sections unless they had an overwhelmingly historic week.",
+        "If one team is featured in the opening section, prioritize different teams in Team Spotlights and Weekly Superlatives.",
     ]
 
     mode_rules = {
@@ -622,13 +617,18 @@ def build_standings_table(league):
     # Sort by wins desc, then losses asc, then name
     html = "<h3 style='margin-top:24px;margin-bottom:8px;'>Division Standings</h3>"
 
+    division_names = {
+        0: "A",
+        1: "B",
+    }
+    
     for division_id, rows in sorted(divisions.items()):
 
         rows.sort(key=lambda r: (-r[1], r[2], r[0]))
 
         html += (
             f"<h4 style='margin-top:16px;margin-bottom:6px;'>"
-            f"Division {division_id}"
+            f"Division {division_names.get(division_id, division_id)}"
             f"</h4>"
         )
 
