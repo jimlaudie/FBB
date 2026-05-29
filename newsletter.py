@@ -337,6 +337,39 @@ def build_summary(league, mode):
     if not has_matchups:
         lines.append("- No matchups this period")
 
+    team_records = {}
+    teams_list = []
+    for team in league.teams:
+        tid = getattr(team, "team_id", None)
+        name = getattr(team, "team_name", "Team {tid}".format(tid=tid))
+
+        wins_val = getattr(team, "wins", 0)
+        losses_val = getattr(team, "losses", 0)
+        ties_val = getattr(team, "ties", 0)
+
+        wins = wins_val if wins_val is not None else 0
+        losses = losses_val if losses_val is not None else 0
+        ties = ties_val if ties_val is not None else 0
+
+        if not wins and not losses:
+            rec = getattr(team, "record", {})
+            wins = rec.get("wins", 0)
+            losses = rec.get("losses", 0)
+            ties = rec.get("ties", 0)
+
+        teams_list.append((tid or 0, name, wins, losses, ties))
+        streak_type = getattr(team, "streak_type", "")
+        streak_length = getattr(team, "streak_length", 0)
+
+        team_records[name] = {
+            "wins": wins,
+            "losses": losses,
+            "ties": ties,
+            "streak_type": streak_type,
+            "streak_length": streak_length,
+        }
+
+    
     if weekly_results:
         highest = max(weekly_results, key=lambda x: x["winner_score"])
         closest = min(weekly_results, key=lambda x: x["margin"])
@@ -400,38 +433,7 @@ def build_summary(league, mode):
         # Standings
         lines.append("")
         lines.append("Standings:")
-    team_records = {}
-    teams_list = []
-    for team in league.teams:
-        tid = getattr(team, "team_id", None)
-        name = getattr(team, "team_name", "Team {tid}".format(tid=tid))
-
-        wins_val = getattr(team, "wins", 0)
-        losses_val = getattr(team, "losses", 0)
-        ties_val = getattr(team, "ties", 0)
-
-        wins = wins_val if wins_val is not None else 0
-        losses = losses_val if losses_val is not None else 0
-        ties = ties_val if ties_val is not None else 0
-
-        if not wins and not losses:
-            rec = getattr(team, "record", {})
-            wins = rec.get("wins", 0)
-            losses = rec.get("losses", 0)
-            ties = rec.get("ties", 0)
-
-        teams_list.append((tid or 0, name, wins, losses, ties))
-        streak_type = getattr(team, "streak_type", "")
-        streak_length = getattr(team, "streak_length", 0)
-
-        team_records[name] = {
-            "wins": wins,
-            "losses": losses,
-            "ties": ties,
-            "streak_type": streak_type,
-            "streak_length": streak_length,
-        }
-
+    
     for tid, name, w, l, t in sorted(teams_list, key=lambda x: x[2], reverse=True):
         lines.append(
             "- {name}: {wins}-{losses}-{ties}".format(
