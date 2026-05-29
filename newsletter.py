@@ -113,7 +113,7 @@ def build_team_lookups(league):
 
     return espn_lookup, config_lookup
 
-def extract_team_storylines(team):
+def extract_team_storylines(team, target_period):
     """
     Pull standout hitters and pitchers from a fantasy team.
     Returns a compact narrative-friendly summary.
@@ -136,10 +136,10 @@ def extract_team_storylines(team):
 
         weekly_points = 0.0
 
-        last_period_stats = stats.get(64, {})
+        period_stats = stats.get(target_period, {})
 
-        if isinstance(last_period_stats, dict):
-            weekly_points = last_period_stats.get("points", 0.0)
+        if isinstance(period_stats, dict):
+            weekly_points = period_stats.get("points", 0.0)
 
         position = getattr(player, "position", "")
 
@@ -263,8 +263,8 @@ def build_summary(league, mode):
 
                     lines.append("  Key performances:")
 
-                    home_story = extract_team_storylines(box_home)
-                    away_story = extract_team_storylines(box_away)
+                    home_story = extract_team_storylines(box_home, target_period)
+                    away_story = extract_team_storylines(box_away, target_period)
 
                     if home_story["top_hitter"]:
 
