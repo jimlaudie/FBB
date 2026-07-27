@@ -245,14 +245,19 @@ def build_summary(league, mode):
 
         winner = home_name if home_score > away_score else away_name
 
+        loser = away_name if home_score > away_score else home_name
+        winner_score = max(home_score, away_score)
+        loser_score = min(home_score, away_score)
+
         lines.append(
-            "- Matchup: {hname} scored {hscore} points vs {aname} with {ascore} points. Margin: {margin}. Winner: {winner}.".format(
-                hname=home_name,
-                hscore=round(home_score, 1),
-                aname=away_name,
-                ascore=round(away_score, 1),
-                margin=margin,
+            "- Final result: {winner} defeated {loser} by exactly {margin:.1f} points. "
+            "Final score: {winner_score:.1f} to {loser_score:.1f}. "
+            "{winner_score:.1f} is the winner's team score, NOT the margin of victory.".format(
                 winner=winner,
+                loser=loser,
+                margin=margin,
+                winner_score=winner_score,
+                loser_score=loser_score,
             )
         )
 
@@ -401,9 +406,10 @@ def build_summary(league, mode):
             f"{closest['loser']} by {closest['margin']:.1f}"
         )
         lines.append(
-            f"- Biggest margin of victory: {blowout['winner']} defeated "
-            f"{blowout['loser']} by {blowout['margin']:.1f} points "
-            f"({blowout['winner_score']:.1f} to {blowout['loser_score']:.1f})"
+            f"- Largest margin of victory: {blowout['winner']} defeated "
+            f"{blowout['loser']} by exactly {blowout['margin']:.1f} points. "
+            f"Final score: {blowout['winner_score']:.1f} to "
+            f"{blowout['loser_score']:.1f}."
         )
         for team in first_win_teams:
             lines.append(
@@ -453,99 +459,85 @@ def build_summary(league, mode):
 
 
 def build_prompt(summary_text, mode):
-    """Build Axios-style, nicely formatted fantasy newsletter prompt (plain text output)."""
-
-    base_rules = [
-        "Use Axios-style Smart Brevity: short sections, clear headings, tight bullets.",
-        "Keep total length around 400–700 words.",
-        "Tone: fun, witty, and clearly trash-talky (about {lvl}/10), but PG and friendly.".format(
-            lvl=TRASH_TALK_LEVEL
-        ),
-        "No swearing.",
-        "Focus on the league as a whole, not just the commissioner.",
-        "You may occasionally poke fun at the commissioner, but do NOT make him the main character.",
-        "Do NOT use any Markdown syntax: no asterisks for bold or italics, no '##' headings, no tables, no code blocks.",
-        "Use simple plain text headings instead (for example: '1 big thing', 'Winners & losers', 'Team spotlights').",
-        "Use blank lines to separate sections and bullets.",
-        "Use the provided weekly superlatives and matchup data heavily.",
-        "Always highlight emotionally important moments like a team's first win, huge upsets, close heartbreak losses, or major streaks.",
-        "If a team earned its first win of the season, mention it prominently and positively.",
-        "If a team earned its first loss of the season, mention it prominently and negatively.",
-        "Never say a team is still looking for its first win if they already have one.",
-        "Prioritize sharp observations over long explanations.",
-        "Avoid repeating standings information multiple times.",
-        "Do not give generic fantasy advice unless tied to a specific trend or matchup.",
-        "Every section should include concrete matchup or scoring details.",
-        "Spread coverage across the league instead of repeating the same team in every section.",
-        "Avoid mentioning the same team in more than 2 major sections unless they had an overwhelmingly historic week.",
-        "If one team is featured in the opening section, prioritize different teams in Team Spotlights and Weekly Superlatives.",
-        "Be numerically precise when discussing margins of victory. Do not confuse total score with margin of victory.",
-    ]
+    """Build a short, funny, league-wide fantasy baseball recap."""
 
     mode_rules = {
         "draft": [
-            "This is a post-draft kickoff issue.",
-            "Highlight draft steals, reaches, and overall vibes.",
-            "Set expectations for the defending champ {champ} and a few key contenders.".format(
-                champ=SHANE_TEAM_NAME
-            ),
+            "This is the post-draft kickoff issue.",
+            "Mention a few draft steals, reaches, and questionable life choices.",
         ],
         "playoff": [
-            "This is a playoff week.",
-            "Lean into stakes, drama, and upsets.",
-            "Highlight who is alive, who is out, and who is clinging to hope.",
+            "This is a playoff issue.",
+            "Emphasize pressure, elimination danger, upsets, and heartbreak.",
         ],
         "finale": [
-            "This is the season finale and wrap-up.",
-            "Crown the champion, give a quick victory lap, and nod to heartbreaks.",
-            "Include a short reflection on the season overall.",
+            "This is the championship and season-wrap issue.",
+            "Crown the champion and briefly recognize the season's best disasters.",
         ],
         "weekly": [
             "This is a regular-season weekly recap.",
-            "Focus on big swings, surprising scores, and shifts in the playoff picture.",
+            "Focus on what actually happened during the completed matchup week.",
         ],
     }
 
+    rules = [
+        "Write a short, funny fantasy baseball league recap.",
+        "Target approximately 250–400 words.",
+        "Keep the tone playful, mildly ruthless, PG, and friendly.",
+        "Use only facts contained in the supplied league data.",
+        "Spread attention across the league rather than repeating one team throughout.",
+        "Do not feature the same team in more than two major sections unless absolutely necessary.",
+        "If one team is the main story, choose different teams for the spotlight section.",
+        "Celebrate meaningful moments such as a first win, an upset, or a streak ending.",
+        "Mention specific players only when the supplied data clearly identifies them.",
+        "Do not invent player statistics, roster weaknesses, transactions, injuries, or waiver options.",
+        "Do not give generic advice such as 'work the waiver wire' unless supported by supplied facts.",
+        "Do not repeat the standings in prose because the standings table appears below.",
+        "Be numerically exact.",
+        "A team's final score is not its margin of victory.",
+        "Never describe a team score as a 'point win.'",
+        "Only say 'won by X points' when X is the explicitly supplied margin of victory.",
+        "Example: a 356–167 final score is a 189-point win, not a 356-point win.",
+        "Do not use Markdown, tables, emojis, asterisks, or numbered lists.",
+        "Use plain-text headings exactly as requested.",
+        "Across the opening, awards, and team discussion sections, try to mention at least four different teams.",
+        "Do not select the main-story team as one of the two team discussions unless another team lacks a meaningful storyline.",
+    ]
+
+    rules.extend(mode_rules.get(mode, mode_rules["weekly"]))
+
     system_msg = (
-        "You are writing an Axios-style fantasy baseball newsletter for a home ESPN "
-        "head-to-head points league. Use Smart Brevity: short sections and scannable bullets. "
-        "Be witty and lightly trash-talky, but keep it PG and fun."
+        "You write a funny, concise recap for a private ESPN fantasy baseball league. "
+        "You are careful with numerical facts and never confuse a team's final score "
+        "with its margin of victory."
     )
 
-    mode_list = mode_rules.get(mode, mode_rules["weekly"])
-
     user_msg = (
-        "Here is compact league data for this week:\n\n"
+        "Completed-week league data:\n\n"
         "{summary}\n\n"
-        "Voice & style rules:\n"
+        "Rules:\n"
         "{rules}\n\n"
-        "Write the newsletter in PLAIN TEXT ONLY (no Markdown, no asterisks, no '##', no tables, no emojis).\n"
-        "Use blank lines to separate sections.\n\n"
-            "Use this structure (you can tweak titles slightly but keep the spirit):\n"
-        "1 big thing\n"
-        "Why it matters: 1–2 sentences on the main storyline.\n"
-        "- A couple of sharp bullets with key details.\n\n"
-        "Weekly superlatives\n"
-        "Call out the week's highest score, closest matchup, biggest blowout, surprise performances, first wins, or other notable weekly moments.\n"
-        "If a team got its first win of the season, make that one of the featured moments.\n\n"
-        "Team spotlights\n"
-        "Pick ONLY 2 teams that genuinely drove this week's storylines.\n"
-        "- Start with the team name on its own line.\n"
-        "- Give 2–4 concise sentences with specific observations and league context.\n\n"
-        "What’s next\n"
-        "A short look ahead: key matchups, interesting storylines, or waiver-wire angles.\n\n"
-        "Constraints:\n"
-        "- Keep it tight and scannable.\n"
-        "- Do NOT over-focus on the commissioner/league manager; he can be mentioned once in passing at most.\n"
-        "- No profanity.\n"
-        "- No emojis.\n"
+        "Write the recap using exactly this structure:\n\n"
+        "The week in one sentence\n"
+        "One funny sentence capturing the week's biggest development.\n\n"
+        "Awards nobody asked for\n"
+        "Use 3 or 4 short bullets. Draw from the supplied highest score, closest game, "
+        "largest margin, first win, streaks, or another factual moment. "
+        "Do not repeat the same team in every bullet.\n\n"
+        "Two teams worth talking about\n"
+        "Choose exactly two teams. Prefer teams not already heavily featured above. "
+        "Give each team one short paragraph of 1–2 sentences.\n\n"
+        "Next week’s nonsense\n"
+        "Give one short sentence looking ahead. Do not invent specific matchups unless "
+        "they are supplied in the data.\n\n"
+        "Keep the entire recap short. The scores and division standings will be added "
+        "automatically beneath the recap."
     ).format(
         summary=summary_text,
-        rules="\n".join("- {r}".format(r=r) for r in base_rules + mode_list),
+        rules="\n".join(f"- {rule}" for rule in rules),
     )
 
     return system_msg, user_msg
-
 
 def generate_newsletter(summary_text, mode):
     """Generate newsletter via OpenAI."""
@@ -785,10 +777,11 @@ def main():
             continue
 
         heading_candidates = [
-            "1 big thing",
-            "weekly superlatives",
-            "team spotlights",
-            "what’s next",
+            "the week in one sentence",
+            "awards nobody asked for",
+            "two teams worth talking about",
+            "next week’s nonsense",
+            "next week's nonsense",
         ]
 
         # Headings
@@ -819,13 +812,15 @@ def main():
                 html += "<ul style='padding-left:20px;margin-top:4px;margin-bottom:4px;'>"
                 in_ul = True
             text = line.lstrip()[2:].strip()
-            if current_section in [
-                "1 big thing",
-                "weekly superlatives",
-                "team spotlights",
-                "what’s next",
-                "whats next",
-            ]:
+            underline_sections = {
+                "the week in one sentence",
+                "awards nobody asked for",
+                "two teams worth talking about",
+                "next week’s nonsense",
+                "next week's nonsense",
+            }
+
+            if current_section in underline_sections:
                 text = underline_team_names(text)
             html += "<li>{text}</li>".format(text=text)
 
@@ -835,13 +830,15 @@ def main():
                 html += "</ul>"
                 in_ul = False
             text = line.strip()
-            if current_section in [
-                "1 big thing",
-                "weekly superlatives",
-                "team spotlights",
-                "what’s next",
-                "whats next",
-            ]:
+            underline_sections = {
+                "the week in one sentence",
+                "awards nobody asked for",
+                "two teams worth talking about",
+                "next week’s nonsense",
+                "next week's nonsense",
+            }
+
+            if current_section in underline_sections:
                 text = underline_team_names(text)
             html += "<p style='margin:4px 0;'>{text}</p>".format(text=text)
 
